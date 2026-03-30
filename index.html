@@ -1,0 +1,4511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>캐피로그 - 경제 생존 로그라이크</title>
+<style>
+/* ── 디자인 토큰 ──────────────────────────────────── */
+:root {
+  --bg:      #0D1117;
+  --s1:      #161B22;
+  --s2:      #1C2128;
+  --s3:      #21262D;
+  --border:  #30363D;
+  --text:    #E6EDF3;
+  --dim:     #8B949E;
+  --blue:    #58A6FF;
+  --green:   #3FB950;
+  --red:     #F85149;
+  --yellow:  #D29922;
+  --purple:  #A371F7;
+  --r:       8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; line-height: 1.5; }
+button { cursor: pointer; font-family: inherit; font-size: inherit; }
+input  { font-family: inherit; font-size: inherit; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── 3-패널 레이아웃 ─────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  grid-template-columns: 240px 1fr 230px;
+  height: 100vh;
+  overflow: hidden;
+}
+.timeline-bar {
+  grid-column: 1 / 4; grid-row: 1;
+  background: var(--s1); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 14px; gap: 10px;
+  position: relative; overflow: hidden; flex-shrink: 0;
+}
+.tl-label { font-size: 10px; font-weight: 800; color: var(--blue); white-space: nowrap; flex-shrink: 0; }
+.tl-track { flex: 1; height: 6px; background: var(--s2); border-radius: 3px; position: relative; overflow: visible; }
+.tl-fill  { height: 100%; background: linear-gradient(90deg, var(--blue), #7cc4ff);
+  border-radius: 3px; transition: width .6s cubic-bezier(.22,1,.36,1); min-width: 6px; }
+.tl-marker { position: absolute; top: 50%; transform: translate(-50%,-50%); font-size: 13px; pointer-events: none; }
+.tl-marker-cur {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--blue);
+  box-shadow: 0 0 8px rgba(88,166,255,.7);
+  transition: left .6s cubic-bezier(.22,1,.36,1); pointer-events: none;
+}
+.tl-turn-info { font-size: 10px; color: var(--dim); white-space: nowrap; flex-shrink: 0; }
+.tl-turn-info strong { color: var(--text); }
+.panel-left   { grid-column: 1; grid-row: 2; background: var(--s1); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.panel-center { grid-column: 2; grid-row: 2; overflow-y: auto; display: flex; flex-direction: column; }
+.panel-right  { grid-column: 3; grid-row: 2; background: var(--s1); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.panel-bottom { display: none; }
+
+/* ── 좌측 패널 ───────────────────────────────────── */
+.lp-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.lp-title {
+  font-size: 14px; font-weight: 800; color: var(--blue);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.lp-turn-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 3px; background: #1d3557; color: var(--blue);
+  border: 1px solid var(--blue);
+}
+
+.lp-body { padding: 12px 14px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+/* 진행 바 */
+.turn-bar { display:none !important; background: var(--s2); border-radius: var(--r); padding: 8px 10px; }
+.turn-bar-label { display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--dim); margin-bottom: 4px; }
+.turn-bar-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.turn-bar-fill  { height: 100%; background: linear-gradient(90deg, var(--blue), var(--green));
+  border-radius: 3px; transition: width .5s; }
+
+/* 상태 행 */
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; border-radius: 6px; background: var(--s2);
+}
+.stat-label { color: var(--dim); font-size: 11px; }
+.stat-value { font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+.v-green  { color: var(--green); }
+.v-red    { color: var(--red); }
+.v-blue   { color: var(--blue); }
+.v-yellow { color: var(--yellow); }
+.v-dim    { color: var(--dim); }
+
+/* 신용등급 */
+.grade-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; background: var(--s2); border-radius: 6px;
+}
+.grade-letter { font-size: 22px; font-weight: 900; }
+.gA { color: #00E676; } .gB { color: var(--blue); }
+.gC { color: var(--yellow); } .gD { color: var(--red); }
+.grade-detail { text-align: right; font-size: 10px; color: var(--dim); }
+
+.divider { height: 1px; background: var(--border); margin: 2px 0; }
+.section-label { font-size: 9px; font-weight: 700; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .6px; margin: 4px 2px 2px; }
+
+/* 계약 박스 */
+.contract-box {
+  padding: 8px 10px; background: var(--s2); border-radius: 6px;
+}
+.contract-name { font-weight: 700; font-size: 12px; }
+.contract-sub  { font-size: 10px; color: var(--dim); margin-top: 2px; }
+.contract-none { color: var(--dim); font-size: 11px; }
+
+/* ── 막대 그래프 ────────────────────────────────── */
+.chart-wrap { padding: 8px 10px; background: var(--s2); border-radius: 6px; flex-shrink: 0; }
+.chart-title { font-size: 10px; color: var(--dim); margin-bottom: 6px; font-weight: 700; }
+.chart-bars  {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 60px; position: relative;
+}
+.chart-baseline {
+  position: absolute; left: 0; right: 0; bottom: 50%;
+  height: 1px; background: var(--border); pointer-events: none;
+}
+.bar-col {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
+  height: 100%; position: relative; cursor: default;
+}
+/* 흑자 막대 — 기준선 위로 자람 */
+.bar-pos {
+  width: 100%; background: var(--blue);
+  border-radius: 2px 2px 0 0;
+  position: absolute; bottom: 50%;
+}
+/* 적자 막대 — 기준선 아래로 자람 */
+.bar-neg {
+  width: 100%; background: var(--red);
+  border-radius: 0 0 2px 2px;
+  position: absolute; top: 50%;
+}
+.bar-col:hover::after {
+  content: attr(data-tip);
+  position: absolute; bottom: 105%; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.85); color: #fff;
+  font-size: 9px; padding: 3px 6px; border-radius: 3px;
+  white-space: nowrap; z-index: 100; pointer-events: none;
+}
+
+/* ── 중앙 패널 ───────────────────────────────────── */
+/* AI 어드바이저 */
+.advisor-bar {
+  padding: 10px 18px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 10px; align-items: flex-start;
+  background: linear-gradient(135deg, var(--s1) 0%, #0c1b27 100%);
+  position: sticky; top: 0; z-index: 30;
+}
+.advisor-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+}
+.advisor-body  { flex: 1; min-width: 0; }
+.advisor-mode  { font-size: 9px; color: var(--dim); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+.advisor-bubble {
+  padding: 7px 11px; border-radius: 0 7px 7px 7px;
+  font-size: 11px; line-height: 1.6; border: 1px solid var(--border); background: var(--s2);
+}
+.advisor-easy   { border-color: #00b341; background: #0a2218; }
+.advisor-normal { border-color: var(--blue); background: #0c1e2b; }
+.advisor-hard   { border-color: var(--yellow); background: #1e1b00; }
+.advisor-insane { border-color: var(--red); background: #200808; }
+
+/* 경제 배너 */
+.eco-banner {
+  padding: 8px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.eco-boom     { background: linear-gradient(135deg,#0a2218,var(--bg)); border-top: 2px solid var(--green); }
+.eco-stable   { background: linear-gradient(135deg,#0c1e2b,var(--bg)); border-top: 2px solid var(--blue); }
+.eco-recession{ background: linear-gradient(135deg,#210a0a,var(--bg)); border-top: 2px solid var(--red); }
+.eco-icon  { font-size: 22px; }
+.eco-name  { font-size: 15px; font-weight: 900; }
+.eco-desc  { font-size: 10px; opacity: .7; margin-top: 1px; }
+.eco-badge {
+  margin-left: auto; padding: 4px 10px; border-radius: 12px;
+  font-size: 11px; font-weight: 700;
+}
+.badge-boom     { background:#0d2218; color:var(--green); border:1px solid var(--green); }
+.badge-stable   { background:#0c1e2b; color:var(--blue);  border:1px solid var(--blue); }
+.badge-recession{ background:#2a0d0d; color:var(--red);   border:1px solid var(--red); }
+
+/* 핵심 조작부 */
+.ops { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.ops-title { font-size: 10px; font-weight: 700; color: var(--blue);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+
+/* 가격 슬라이더 */
+.price-block { margin-bottom: 14px; }
+.price-hint { display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--dim); margin-bottom: 4px; }
+.price-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.price-slider {
+  flex: 1; -webkit-appearance: none; height: 6px;
+  border-radius: 3px; background: var(--border); outline: none;
+}
+.price-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--blue); cursor: pointer;
+  border: 2px solid var(--bg); box-shadow: 0 0 0 2px var(--blue);
+}
+.price-input {
+  width: 110px; padding: 7px 10px; background: var(--s2);
+  border: 1.5px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 14px; font-weight: 700; text-align: right;
+}
+.price-input:focus { outline: none; border-color: var(--blue); }
+.price-unit { font-size: 11px; color: var(--dim); }
+
+/* BEP 인라인 */
+.bep-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; margin-bottom: 6px; }
+.bep-cell { background: var(--s2); border-radius: 5px; padding: 5px 6px; text-align: center; }
+.bep-lbl  { font-size: 9px; color: var(--dim); }
+.bep-val  { font-size: 11px; font-weight: 700; margin-top: 1px; }
+
+.below-cost {
+  padding: 5px 9px; background: #2a0d0d; border-radius: 5px;
+  font-size: 11px; color: var(--red); border-left: 3px solid var(--red); display: none;
+}
+
+/* HR 교육 버튼 */
+.hr-block { margin-bottom: 14px; }
+.hr-head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+.hr-pips  { display: flex; gap: 4px; }
+.hr-pip   { width: 9px; height: 9px; border-radius: 50%; background: var(--border); transition: background .2s; }
+.hr-pip-on{ background: var(--blue); }
+.hr-lim   { font-size: 10px; color: var(--dim); }
+.hr-lim-over { color: var(--red); font-weight: 700; }
+.hr-btn {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px; margin-bottom: 5px;
+  border: 1px solid var(--border); background: var(--s2);
+  border-radius: 7px; transition: all .2s; cursor: pointer;
+}
+.hr-btn:hover:not(:disabled) { border-color: var(--blue); }
+.hr-btn:disabled { opacity: .32; cursor: not-allowed; }
+.hr-icon { font-size: 17px; flex-shrink: 0; }
+.hr-info { flex: 1; text-align: left; }
+.hr-name { font-size: 12px; font-weight: 700; color: #fff; }
+.hr-eff  { font-size: 10px; color: #9db4c8; margin-top: 1px; }
+.hr-cost { font-size: 11px; font-weight: 700; }
+.hr-cost-sales { color: var(--blue); }
+.hr-cost-mkt   { color: var(--purple); }
+.hr-cost-prod  { color: var(--green); }
+
+/* 공장 관리 */
+.factory-block {
+  margin-bottom: 14px; padding: 11px 12px;
+  background: rgba(240,136,62,.06); border: 1px solid rgba(240,136,62,.3);
+  border-radius: 8px;
+}
+.factory-title { font-size: 11px; font-weight: 700; color: #F0883E; margin-bottom: 8px; }
+.factory-btns { display: flex; gap: 5px; }
+.factory-btn {
+  flex: 1; padding: 7px 5px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  border: 1px solid; cursor: pointer; transition: all .2s; background: transparent;
+}
+.fbtn-build  { border-color: #F0883E; color: #F0883E; }
+.fbtn-build:hover:not(:disabled)  { background: rgba(240,136,62,.12); }
+.fbtn-upgrade{ border-color: var(--yellow); color: var(--yellow); }
+.fbtn-upgrade:hover:not(:disabled){ background: rgba(210,153,34,.12); }
+.fbtn-product{ border-color: var(--purple); color: var(--purple); }
+.fbtn-product:hover:not(:disabled){ background: rgba(163,113,247,.12); }
+.factory-btn:disabled { opacity: .3; cursor: not-allowed; }
+.factory-status { font-size: 10px; color: var(--dim); margin-top: 6px; }
+
+/* 다음 달 버튼 */
+.next-btn {
+  width: 100%; padding: 13px; font-size: 15px; font-weight: 900;
+  background: linear-gradient(135deg, #059669, var(--green));
+  color: #fff; border: none; border-radius: 9px;
+  box-shadow: 0 4px 16px rgba(63,185,80,.4); transition: all .2s;
+}
+.next-btn:hover:not(:disabled) {
+  transform: translateY(-2px); box-shadow: 0 6px 22px rgba(63,185,80,.5);
+}
+.next-btn:disabled { opacity: .4; cursor: not-allowed; transform: none;
+  background: var(--s2); color: var(--dim); box-shadow: none; }
+
+/* 대시보드 셀 */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 10px 18px; border-bottom: 1px solid var(--border); }
+.dash-cell { background: var(--s2); border-radius: 7px; padding: 9px 11px; }
+.dash-lbl  { font-size: 9px; color: var(--dim); text-transform: uppercase;
+  letter-spacing: .3px; margin-bottom: 2px; }
+.dash-val  { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* 액션 버튼 행 */
+.action-row { display: flex; gap: 5px; flex-wrap: wrap;
+  padding: 8px 18px; border-bottom: 1px solid var(--border); }
+.action-btn {
+  flex: 1; min-width: 62px; padding: 7px 5px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--border); background: var(--s2);
+  color: var(--text); transition: all .2s;
+}
+.action-btn:hover { border-color: var(--blue); color: var(--blue); }
+.action-btn-p { border-color: #4a2d8c; color: var(--purple); background: rgba(163,113,247,.06); }
+.action-btn-g { border-color: #1a6632; color: var(--green);  background: rgba(63,185,80,.06); }
+
+/* ── 하단 패널 ───────────────────────────────────── */
+.bp-col { padding: 10px 14px; border-right: 1px solid var(--border); overflow-y: auto; }
+.bp-col:last-child { border-right: none; }
+.bp-title { font-size: 9px; font-weight: 700; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 7px; }
+
+/* 도매업체 탭 */
+.vendor-tabs { display: flex; gap: 3px; margin-bottom: 8px; }
+.vendor-tab {
+  flex: 1; padding: 5px; border-radius: 5px; font-size: 10px; font-weight: 700;
+  border: 1px solid var(--border); background: var(--s2); color: var(--dim);
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.vendor-tab.active-cheap   { background: rgba(63,185,80,.12); border-color:var(--green); color:var(--green); }
+.vendor-tab.active-standard{ background: rgba(88,166,255,.12); border-color:var(--blue);  color:var(--blue); }
+.vendor-tab.active-premium { background: rgba(210,153,34,.12); border-color:var(--yellow);color:var(--yellow); }
+.vendor-card-area { background: var(--s2); border-radius: 6px; padding: 8px 10px; }
+.vc-name  { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+.vc-row   { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; }
+.vc-lbl   { color: var(--dim); }
+.vc-val   { font-weight: 600; }
+.vc-select-btn {
+  width: 100%; margin-top: 7px; padding: 6px; border-radius: 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  background: transparent; border: 1px solid var(--border); color: var(--dim);
+  transition: all .2s;
+}
+.vc-select-btn.selected { background: var(--green); color: #0D1117; border-color: var(--green); }
+.vc-select-btn:not(.selected):hover { border-color: var(--blue); color: var(--blue); }
+
+/* 라이벌 행 */
+.rival-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 8px; background: var(--s2); border-radius: 5px;
+  margin-bottom: 4px; font-size: 11px;
+}
+.rival-name  { font-weight: 700; }
+.rival-price { color: var(--dim); }
+.rival-share { font-weight: 700; color: var(--yellow); }
+
+/* 이벤트 로그 */
+.log-list { display: flex; flex-direction: column; gap: 2px; }
+.log-item { font-size: 10px; padding: 3px 6px; border-radius: 3px; line-height: 1.4; }
+.log-info    { color: var(--dim); }
+.log-warn    { color: var(--yellow); background: rgba(210,153,34,.08); }
+.log-good    { color: var(--green);  background: rgba(63,185,80,.08); }
+.log-bad     { color: var(--red);    background: rgba(248,81,73,.08); }
+.log-contract{ color: var(--blue);   background: rgba(88,166,255,.08); }
+
+/* 경제 지표 행 */
+.eco-row { display: flex; justify-content: space-between; padding: 3px 0;
+  font-size: 11px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.eco-row:last-child { border-bottom: none; }
+.eco-row-lbl { color: var(--dim); }
+
+/* ── 모달 ───────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9000; padding: 16px;
+  /* pointer-events 관리가 핵심 — hidden 시 none 처리 */
+}
+.modal-overlay.hidden {
+  display: none;
+  pointer-events: none;
+}
+.modal-box {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px; width: 100%; max-width: 480px;
+  max-height: 88vh; overflow-y: auto;
+  animation: slideUp .25s cubic-bezier(.22,1,.36,1);
+  box-shadow: 0 24px 64px rgba(0,0,0,.7);
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.modal-title{ font-size: 17px; font-weight: 800; }
+.modal-close{
+  width: 28px; height: 28px; border-radius: 6px;
+  background: var(--s2); border: 1px solid var(--border);
+  color: var(--text); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { border-color: var(--red); color: var(--red); }
+.modal-section { margin-bottom: 14px; }
+.modal-section-title {
+  font-size: 9px; font-weight: 700; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border);
+}
+.report-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.report-lbl { color: var(--dim); }
+.report-val { font-weight: 600; }
+.profit-badge {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 14px; border-radius: 8px; margin: 10px 0;
+}
+.profit-pos { background: #0d2b14; border: 1px solid var(--green); color: var(--green); }
+.profit-neg { background: #2b0d0d; border: 1px solid var(--red);   color: var(--red); }
+.profit-label{ font-size: 13px; font-weight: 600; }
+.profit-value{ font-size: 20px; font-weight: 800; }
+.confirm-btn {
+  width: 100%; padding: 11px; background: var(--blue); color: #0D1117;
+  font-weight: 800; font-size: 14px; border: none; border-radius: 8px;
+  cursor: pointer; margin-top: 6px; transition: opacity .2s;
+}
+.confirm-btn:hover { opacity: .88; }
+
+/* ── Step 2: 아이템 검색 폼 ──────────────────────── */
+.search-form {
+  display: flex; gap: 6px; margin-bottom: 8px;
+}
+.search-input {
+  flex: 1; padding: 7px 10px; background: var(--s3);
+  border: 1.5px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; outline: none;
+  transition: border-color .2s;
+}
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--dim); }
+.search-btn {
+  padding: 7px 13px; background: var(--blue); color: #0D1117;
+  border: none; border-radius: 6px; font-size: 11px; font-weight: 800;
+  cursor: pointer; transition: opacity .2s; white-space: nowrap;
+}
+.search-btn:hover { opacity: .85; }
+.search-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Step 2: AI 로딩 오버레이 ─────────────────────── */
+#ai-loading {
+  position: fixed; inset: 0; background: rgba(0,0,0,.72);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 8000;
+}
+#ai-loading.hidden { display: none; pointer-events: none; }
+.ai-loading-card {
+  background: var(--s1); border: 1px solid var(--blue);
+  border-radius: 14px; padding: 28px 36px; text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,.6);
+  animation: slideUp .3s cubic-bezier(.22,1,.36,1);
+}
+.ai-loading-spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--blue); border-radius: 50%;
+  animation: spin .8s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-loading-title { font-size: 15px; font-weight: 800; color: var(--blue); margin-bottom: 6px; }
+.ai-loading-sub   { font-size: 11px; color: var(--dim); }
+
+/* ── Step 2: 도매업체 카드 (확장) ─────────────────── */
+.vendor-type-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; margin-bottom: 5px;
+}
+.badge-cheap    { background: rgba(63,185,80,.15);  color: var(--green); }
+.badge-standard { background: rgba(88,166,255,.15); color: var(--blue); }
+.badge-premium  { background: rgba(210,153,34,.15); color: var(--yellow); }
+.vc-quality-bar {
+  display: inline-block; height: 4px; border-radius: 2px;
+  background: var(--border); width: 80px; vertical-align: middle;
+  margin-left: 6px; position: relative; overflow: hidden;
+}
+.vc-quality-fill {
+  position: absolute; left: 0; top: 0; height: 100%;
+  border-radius: 2px; background: linear-gradient(90deg, var(--yellow), var(--green));
+}
+
+/* ── 난이도 선택 화면 ────────────────────────────── */
+#diff-screen {
+  position: fixed; inset: 0; background: var(--bg); z-index: 99999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px;
+}
+#diff-screen.hidden { display: none; }
+.diff-title { font-size: 28px; font-weight: 900; color: var(--blue); margin-bottom: 4px; }
+.diff-sub   { font-size: 12px; color: var(--dim); margin-bottom: 24px; }
+.diff-cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 820px; }
+.diff-card  {
+  background: var(--s1); border: 2px solid var(--border);
+  border-radius: 12px; padding: 18px; width: 180px;
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.diff-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,.5); }
+.dc-easy   { border-color: #00b341; }
+.dc-normal { border-color: var(--blue); }
+.dc-hard   { border-color: var(--yellow); }
+.dc-insane { border-color: var(--red); }
+.diff-icon { font-size: 28px; margin-bottom: 5px; }
+.diff-name { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+.dc-easy   .diff-name { color: #00E676; }
+.dc-normal .diff-name { color: var(--blue); }
+.dc-hard   .diff-name { color: var(--yellow); }
+.dc-insane .diff-name { color: var(--red); }
+.diff-desc { font-size: 10px; color: var(--dim); line-height: 1.5; margin-bottom: 8px; }
+.diff-stats{ display: flex; flex-direction: column; gap: 3px;
+  background: var(--s2); border-radius: 5px; padding: 7px; }
+.diff-stat { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
+.diff-stat strong { color: var(--text); }
+
+/* 토스트 */
+@keyframes toastIn {
+  from { transform: translateX(-50%) translateY(12px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+.toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  padding: 9px 18px; border-radius: 7px; font-size: 12px; font-weight: 700;
+  z-index: 99999; pointer-events: none;
+  animation: toastIn .2s ease; box-shadow: 0 4px 18px rgba(0,0,0,.5);
+}
+.toast-info  { background: #0c1e2b; color: var(--blue);   border: 1px solid var(--blue); }
+.toast-warn  { background: #2a1a00; color: var(--yellow); border: 1px solid var(--yellow); }
+.toast-good  { background: #0d2218; color: var(--green);  border: 1px solid var(--green); }
+.toast-bad   { background: #2a0808; color: var(--red);    border: 1px solid var(--red); }
+
+/* ════ Step 3 CSS ══════════════════════════════════════ */
+/* 공통 모달-2 (금융/부동산/M&A/업적) */
+.modal2-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;
+  align-items:center;justify-content:center;z-index:8600;padding:16px;}
+.modal2-ov.hidden{display:none!important;pointer-events:none!important;}
+.modal2-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  padding:22px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;
+  animation:slideUp .25s cubic-bezier(.22,1,.36,1);box-shadow:0 24px 64px rgba(0,0,0,.7);}
+/* 탭 */
+.m2-tabs{display:flex;gap:4px;margin-bottom:14px;}
+.m2-tab{flex:1;padding:7px;border-radius:6px;font-size:11px;font-weight:700;
+  border:1px solid var(--border);background:var(--s2);color:var(--dim);cursor:pointer;transition:all .2s;}
+.m2-tab.on{background:var(--blue);color:#0D1117;border-color:var(--blue);}
+/* 폼 행 */
+.m2-row{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05);}
+.m2-row:last-child{border-bottom:none;}
+.m2-lbl{color:var(--dim);}
+.m2-val{font-weight:600;}
+.m2-pos{color:var(--green);}
+.m2-neg{color:var(--red);}
+/* 입력 */
+.m2-range{width:100%;margin:7px 0;accent-color:var(--blue);}
+.m2-num{width:100%;padding:8px 11px;background:var(--s2);
+  border:1.5px solid var(--border);border-radius:7px;
+  color:var(--text);font-size:15px;font-weight:700;text-align:right;margin-bottom:6px;}
+.m2-num:focus{outline:none;border-color:var(--blue);}
+/* 실행 버튼 */
+.m2-btn{width:100%;padding:11px;font-size:14px;font-weight:800;
+  border:none;border-radius:8px;cursor:pointer;transition:opacity .2s;margin-top:4px;}
+.m2-btn:hover{opacity:.88;}
+.m2-btn:disabled{opacity:.35;cursor:not-allowed;}
+.m2-btn-blue{background:var(--blue);color:#0D1117;}
+.m2-btn-green{background:var(--green);color:#0D1117;}
+.m2-btn-red{background:var(--red);color:#fff;}
+.m2-btn-yellow{background:var(--yellow);color:#0D1117;}
+/* 부동산 카드 */
+.realty-card{padding:10px 12px;background:var(--s2);border-radius:8px;
+  border:1.5px solid var(--border);margin-bottom:8px;}
+.realty-active{border-color:var(--green)!important;background:rgba(63,185,80,.07)!important;}
+.realty-name{font-size:13px;font-weight:700;margin-bottom:5px;}
+.realty-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--dim);}
+/* M&A 결과 카드 */
+.mna-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0;}
+.mna-card{padding:11px 7px;border-radius:8px;text-align:center;
+  border:1.5px solid var(--border);background:var(--s2);transition:all .2s;}
+.mna-card:hover{transform:translateY(-2px);}
+.mna-win{border-color:var(--green)!important;background:rgba(63,185,80,.1)!important;}
+.mna-mid{border-color:var(--yellow)!important;background:rgba(210,153,34,.1)!important;}
+.mna-loss{border-color:var(--red)!important;background:rgba(248,81,73,.1)!important;}
+.mna-icon{font-size:22px;margin-bottom:5px;}
+.mna-title{font-size:12px;font-weight:800;margin-bottom:3px;}
+.mna-desc{font-size:10px;color:var(--dim);line-height:1.4;}
+/* 메타 퍽 */
+.perk-row{display:flex;align-items:center;gap:10px;padding:9px 11px;
+  background:var(--s2);border-radius:8px;margin-bottom:7px;}
+.perk-icon{font-size:20px;flex-shrink:0;}
+.perk-body{flex:1;min-width:0;}
+.perk-name{font-size:12px;font-weight:700;}
+.perk-desc{font-size:10px;color:var(--dim);margin-top:1px;}
+.perk-bar{height:4px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;}
+.perk-fill{height:100%;border-radius:2px;transition:width .5s;}
+.perk-val{font-size:13px;font-weight:800;text-align:right;flex-shrink:0;}
+/* 스토리 */
+.story-ov{position:fixed;inset:0;background:rgba(0,0,0,.88);
+  display:flex;align-items:center;justify-content:center;z-index:9400;padding:20px;}
+.story-ov.hidden{display:none!important;pointer-events:none!important;}
+.story-box{background:var(--s1);border:1px solid var(--border);border-radius:16px;
+  padding:28px;max-width:500px;width:100%;
+  animation:slideUp .3s cubic-bezier(.22,1,.36,1);}
+.story-act{font-size:10px;color:var(--blue);font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+.story-title{font-size:20px;font-weight:900;margin-bottom:14px;}
+.story-body{font-size:13px;color:var(--dim);line-height:1.9;min-height:80px;}
+.story-cursor{display:inline-block;width:2px;height:13px;background:var(--blue);
+  margin-left:1px;vertical-align:text-bottom;animation:blink .6s step-end infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.story-cont{display:none;margin-top:16px;float:right;
+  padding:8px 20px;background:var(--blue);color:#0D1117;
+  font-weight:800;border:none;border-radius:7px;cursor:pointer;}
+/* 블랙 스완 */
+.swan-ov{position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:9200;padding:24px;text-align:center;}
+.swan-ov.hidden{display:none!important;pointer-events:none!important;}
+.swan-title{font-size:36px;font-weight:900;margin-bottom:10px;
+  animation:swanIn .5s cubic-bezier(.22,1,.36,1);}
+@keyframes swanIn{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+.swan-sub{font-size:14px;opacity:.75;margin-bottom:18px;max-width:440px;}
+.swan-effects{display:flex;flex-direction:column;gap:7px;margin-bottom:22px;max-width:400px;}
+.swan-eff{padding:8px 13px;border-radius:7px;font-size:12px;font-weight:600;}
+.se-red{background:rgba(248,81,73,.1);border:1px solid var(--red);color:var(--red);}
+.se-yellow{background:rgba(210,153,34,.1);border:1px solid var(--yellow);color:var(--yellow);}
+.se-purple{background:rgba(163,113,247,.1);border:1px solid var(--purple);color:var(--purple);}
+.swan-ok{padding:10px 26px;font-size:13px;font-weight:800;border:none;
+  border-radius:8px;cursor:pointer;}
+/* 게임 오버 */
+.go-ov{position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:9900;padding:24px;text-align:center;}
+.go-ov.hidden{display:none!important;pointer-events:none!important;}
+.go-title{font-size:50px;font-weight:900;margin-bottom:7px;}
+.go-sub{font-size:15px;opacity:.75;margin-bottom:20px;}
+.go-stats{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin-bottom:18px;}
+.go-stat{background:rgba(255,255,255,.06);border-radius:8px;padding:9px 13px;}
+.go-stat-lbl{font-size:10px;opacity:.6;margin-bottom:2px;}
+.go-stat-val{font-size:15px;font-weight:800;}
+.go-meta{max-width:380px;padding:11px 15px;background:rgba(163,113,247,.08);
+  border-radius:9px;border:1px solid rgba(163,113,247,.3);margin-bottom:16px;}
+.go-meta-title{font-size:10px;color:var(--purple);font-weight:700;margin-bottom:6px;}
+.go-meta-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;}
+.go-meta-lbl{opacity:.65;}
+.go-meta-new{font-weight:700;color:var(--purple);}
+.go-restart{padding:12px 30px;font-size:15px;font-weight:900;
+  border:none;border-radius:10px;cursor:pointer;
+  box-shadow:0 4px 16px rgba(88,166,255,.4);transition:all .2s;}
+.go-restart:hover{transform:translateY(-2px);}
+/* 숫자 롤링 */
+@keyframes numRoll{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.num-roll{animation:numRoll .4s cubic-bezier(.22,1,.36,1);}
+/* 독점 골드 테마 */
+.gold-panel .panel-left{background:linear-gradient(180deg,#1a1400,#0D1117);border-right-color:#d29922;}
+.gold-panel .lp-title{color:#f0c040;}
+.gold-panel .lp-turn-badge{background:#2a1f00;color:#f0c040;border-color:#d29922;}
+.gold-panel .turn-bar-fill{background:linear-gradient(90deg,#d29922,#f0c040);}
+.gold-panel .stat-row{background:#1a1800;}
+/* 담합 버튼 */
+.cartel-btn{width:100%;padding:8px;margin-top:8px;border-radius:7px;
+  font-size:12px;font-weight:700;border:1.5px solid #dc2626;
+  background:rgba(220,38,38,.08);color:#f87171;cursor:pointer;transition:all .2s;display:none;}
+.cartel-btn:hover:not(:disabled){background:rgba(220,38,38,.18);}
+.cartel-btn.active{background:rgba(220,38,38,.2);animation:cartelPulse 1.2s ease-in-out infinite;}
+@keyframes cartelPulse{0%,100%{box-shadow:0 0 0 rgba(220,38,38,.4)}50%{box-shadow:0 0 12px rgba(220,38,38,.7)}}
+/* ════════════════════════════════════════════════════ */
+
+/* ════ Step 4-2 CSS ════════════════════════════════════ */
+/* 뉴스 속보 오버레이 */
+.news-ov{position:fixed;inset:0;background:rgba(0,0,0,.80);
+  display:flex;align-items:center;justify-content:center;z-index:9100;padding:16px;}
+.news-ov.hidden{display:none!important;pointer-events:none!important;}
+.news-box{background:var(--s1);border-radius:14px;padding:22px;
+  width:100%;max-width:440px;
+  animation:slideUp .25s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 24px 64px rgba(0,0,0,.7);}
+.news-band{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.news-flash{font-size:9px;font-weight:900;letter-spacing:1px;padding:3px 8px;
+  border-radius:3px;text-transform:uppercase;flex-shrink:0;}
+.news-flash-A{background:#dc2626;color:#fff;}
+.news-flash-B{background:var(--yellow);color:#0D1117;}
+.news-flash-C{background:var(--blue);color:#0D1117;}
+.news-flash-D{background:var(--purple);color:#0D1117;}
+.news-tier-label{font-size:10px;color:var(--dim);font-weight:700;}
+.news-title{font-size:16px;font-weight:900;margin-bottom:7px;line-height:1.4;}
+.news-desc{font-size:12px;color:var(--dim);line-height:1.7;margin-bottom:14px;}
+.news-effect-row{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border-radius:7px;margin-bottom:6px;}
+.news-effect-pos{background:rgba(63,185,80,.1);border:1px solid var(--green);}
+.news-effect-neg{background:rgba(248,81,73,.1);border:1px solid var(--red);}
+.news-effect-neu{background:rgba(88,166,255,.08);border:1px solid var(--blue);}
+.news-effect-icon{font-size:15px;flex-shrink:0;}
+.news-effect-text{font-size:11px;font-weight:600;flex:1;}
+.news-dur{font-size:10px;color:var(--dim);flex-shrink:0;margin-left:4px;}
+.news-ok-btn{width:100%;padding:10px;margin-top:8px;background:var(--blue);
+  color:#0D1117;font-weight:800;font-size:13px;border:none;border-radius:8px;cursor:pointer;}
+.news-ok-btn:hover{opacity:.88;}
+
+/* 상태 보드 (하단 이벤트 로그 컬럼에 통합) */
+.status-board{margin-top:8px;}
+.status-board-title{font-size:9px;font-weight:700;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.5px;
+  padding:5px 0 4px;border-top:1px solid var(--border);margin-top:6px;}
+.status-none{font-size:11px;color:var(--dim);padding:3px 0;font-style:italic;}
+.status-item{display:flex;align-items:center;gap:6px;
+  padding:4px 7px;border-radius:5px;margin-bottom:3px;font-size:11px;}
+.status-item-pos{background:rgba(63,185,80,.08);border-left:2px solid var(--green);}
+.status-item-neg{background:rgba(248,81,73,.08);border-left:2px solid var(--red);}
+.status-item-neu{background:rgba(88,166,255,.07);border-left:2px solid var(--blue);}
+.status-item-name{flex:1;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.status-item-turns{font-size:10px;font-weight:700;flex-shrink:0;
+  padding:1px 5px;border-radius:3px;}
+.turns-pos{background:#0d2218;color:var(--green);}
+.turns-neg{background:#2a0808;color:var(--red);}
+.turns-neu{background:#0c1e2b;color:var(--blue);}
+/* ════════════════════════════════════════════════════════ */
+
+/* ════ Step 5 CSS ══════════════════════════════════════ */
+.hq-block{padding:12px 12px 8px;text-align:center;border-bottom:1px solid var(--border);flex-shrink:0;}
+.hq-building{font-size:52px;line-height:1.1;margin-bottom:3px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:all .4s;}
+.hq-stage{font-size:9px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:1px;}
+.hq-name{font-size:11px;font-weight:800;color:var(--text);}
+.rp-header{padding:9px 11px 7px;border-bottom:1px solid var(--border);font-size:9px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;flex-shrink:0;}
+.pie-wrap{display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;flex-shrink:0;}
+.pie-canvas{width:120px;height:120px;border-radius:50%;background:conic-gradient(var(--blue) 0% 0%,var(--s3) 0% 100%);transition:background .7s cubic-bezier(.22,1,.36,1);box-shadow:0 0 0 3px var(--s2),0 0 18px rgba(88,166,255,.12);}
+.pie-center-text{position:absolute;font-size:16px;font-weight:900;color:var(--text);}
+.pie-legend{width:100%;padding:0 6px;margin-top:8px;}
+.pie-legend-row{display:flex;align-items:center;gap:5px;padding:2px 0;font-size:10px;}
+.pie-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.pie-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pie-pct{font-weight:700;flex-shrink:0;}
+.rp-rivals{padding:6px 9px;border-top:1px solid var(--border);flex:1;overflow-y:auto;}
+.rp-rival-row{display:flex;align-items:center;gap:5px;padding:4px 5px;border-radius:4px;margin-bottom:2px;font-size:10px;}
+.rp-rival-row:hover{background:var(--s2);}
+.rp-rival-name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rp-rival-price{color:var(--dim);font-size:9px;flex-shrink:0;}
+.rp-rival-share{font-weight:800;flex-shrink:0;}
+.doc-section{padding:8px 10px;border-top:1px solid var(--border);flex-shrink:0;}
+.doc-section-title{font-size:9px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.doc-cards{display:flex;gap:5px;}
+.doc-card{flex:1;padding:8px 7px;border-radius:7px;background:var(--s2);border:1.5px solid var(--border);cursor:pointer;transition:all .18s;font-size:11px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:64px;}
+.doc-card:hover:not(:disabled){border-color:var(--blue);background:rgba(88,166,255,.08);transform:translateY(-2px);}
+.doc-card:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.doc-card-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);}
+.doc-card-title{font-size:11px;font-weight:800;line-height:1.35;}
+.doc-card-prob{font-size:9px;color:var(--dim);margin-top:1px;}
+.doc-result-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:9000;padding:20px;}
+.doc-result-ov.hidden{display:none!important;}
+.doc-result-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:380px;width:100%;animation:slideUp .22s cubic-bezier(.22,1,.36,1);text-align:center;}
+.doc-result-icon{font-size:38px;margin-bottom:7px;}
+.doc-result-title{font-size:15px;font-weight:900;margin-bottom:5px;}
+.doc-result-desc{font-size:12px;color:var(--dim);line-height:1.7;}
+.doc-result-bar{height:3px;border-radius:2px;margin-top:13px;background:var(--blue);animation:drainBar 1.4s linear forwards;}
+@keyframes drainBar{from{width:100%}to{width:0%}}
+.bottom-integrated{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border);background:var(--s1);flex-shrink:0;max-height:200px;}
+.bi-col{padding:7px 9px;border-right:1px solid var(--border);overflow-y:auto;}
+.bi-col:last-child{border-right:none;}
+.bi-title{font-size:9px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border);}
+/* ════════════════════════════════════════════════════ */
+
+/* P-02: 블랙스완 활성 시 ☠️ 마커 강조 */
+.tl-marker-bs-active {
+  animation: bsPulse 0.8s ease-in-out infinite;
+  font-size: 16px !important;
+}
+@keyframes bsPulse {
+  0%,100% { transform: translate(-50%,-50%) scale(1); }
+  50%      { transform: translate(-50%,-50%) scale(1.5); filter: drop-shadow(0 0 6px #F85149); }
+}
+/* P-03: 반응형 — 1100px 이하 우측 패널 숨김 */
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 220px 1fr !important; }
+  .panel-right { display: none !important; }
+  .timeline-bar { grid-column: 1 / 3 !important; }
+  .panel-left   { grid-column: 1 !important; }
+  .panel-center { grid-column: 2 !important; }
+}
+@media (max-width: 780px) {
+  .layout { grid-template-columns: 1fr !important; grid-template-rows: 44px 1fr !important; }
+  .panel-left   { display: none !important; }
+  .panel-center { grid-column: 1 !important; }
+  .timeline-bar { grid-column: 1 !important; }
+}
+/* P-05: 타임라인 마커 툴팁 */
+.tl-marker[title] { cursor: help; }
+.tl-marker[title]:hover::after {
+  content: attr(title);
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--s1); border: 1px solid var(--border);
+  padding: 3px 7px; border-radius: 4px; font-size: 10px;
+  white-space: nowrap; pointer-events: none; z-index: 100;
+  color: var(--text);
+}
+</style>
+</head>
+<body>
+
+<!-- ── 난이도 선택 ──────────────────────────────── -->
+<div id="diff-screen">
+  <div class="diff-title">🏪 캐피로그</div>
+  <div class="diff-sub">경제 생존 로그라이크 — 난이도를 선택하세요.</div>
+  <div class="diff-cards">
+    <div class="diff-card dc-easy" data-diff="easy">
+      <div class="diff-icon">🌱</div>
+      <div class="diff-name">이지</div>
+      <div class="diff-desc">AI가 라이벌 예상 가격까지 알려줍니다. 경영 원리 학습에 최적.</div>
+      <div class="diff-stats">
+        <div class="diff-stat"><span>시작 자본</span><strong>1억 원</strong></div>
+        <div class="diff-stat"><span>이자율</span><strong>4.8%</strong></div>
+        <div class="diff-stat"><span>라이벌</span><strong>1명</strong></div>
+      </div>
+    </div>
+    <div class="diff-card dc-normal" data-diff="normal">
+      <div class="diff-icon">⚖️</div>
+      <div class="diff-name">노멀</div>
+      <div class="diff-desc">비서는 라이벌 팩트만 전달. 판단은 스스로 내려야 합니다.</div>
+      <div class="diff-stats">
+        <div class="diff-stat"><span>시작 자본</span><strong>5천만 원</strong></div>
+        <div class="diff-stat"><span>이자율</span><strong>6.0%</strong></div>
+        <div class="diff-stat"><span>라이벌</span><strong>1명</strong></div>
+      </div>
+    </div>
+    <div class="diff-card dc-hard" data-diff="hard">
+      <div class="diff-icon">🔥</div>
+      <div class="diff-name">하드</div>
+      <div class="diff-desc">거시 지표만 제공. 라이벌 2명과 치열하게 경쟁.</div>
+      <div class="diff-stats">
+        <div class="diff-stat"><span>시작 자본</span><strong>3천만 원</strong></div>
+        <div class="diff-stat"><span>이자율</span><strong>6.0%</strong></div>
+        <div class="diff-stat"><span>라이벌</span><strong>2명</strong></div>
+      </div>
+    </div>
+    <div class="diff-card dc-insane" data-diff="insane">
+      <div class="diff-icon">💀</div>
+      <div class="diff-name">인세인</div>
+      <div class="diff-desc">자본 1천만·악성 부채 5천만 시작. 비서 정보의 30%가 허위.</div>
+      <div class="diff-stats">
+        <div class="diff-stat"><span>시작 자본</span><strong>1천만 원</strong></div>
+        <div class="diff-stat"><span>부채</span><strong>5천만 원</strong></div>
+        <div class="diff-stat"><span>라이벌</span><strong>4명</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 메인 레이아웃 ────────────────────────────── -->
+<div class="layout" id="main-layout" style="display:none">
+
+  <!-- 타임라인 -->
+  <div class="timeline-bar">
+    <span class="tl-label">캐피로그</span>
+    <div class="tl-track" id="tl-track">
+      <div class="tl-fill" id="tl-fill" style="width:0.83%"></div>
+      <span class="tl-marker" id="tl-m37" style="left:30.4%;top:50%;transform:translate(-50%,-50%)" title="37턴: 성장기 진입 — 경쟁 심화">⚔️</span>
+      <span class="tl-marker" id="tl-m80" style="left:66.1%;top:50%;transform:translate(-50%,-50%)" title="80턴~: 블랙 스완 경고 — 대재앙 가능성">☠️</span>
+      <div class="tl-marker-cur" id="tl-cur" style="left:0.83%"></div>
+    </div>
+    <span class="tl-turn-info"><strong id="tl-turn-num">1</strong>/120개월</span>
+  </div>
+
+  <!-- 좌측 패널 -->
+  <aside class="panel-left">
+    <div class="hq-block">
+      <div class="hq-building" id="hq-emoji">🏚️</div>
+      <div class="hq-stage"   id="hq-stage">창업 초기</div>
+      <div class="hq-name"    id="hq-name">허름한 차고지</div>
+    </div>
+    <div class="lp-header">
+      <div class="lp-title">
+        <span style="color:var(--blue);font-weight:900;letter-spacing:-.3px;">캐피로그</span>
+        <span class="lp-turn-badge" id="turn-badge">1개월 차</span>
+      </div>
+    </div>
+    <div class="lp-body">
+
+      <!-- 턴 진행 바 -->
+      <div class="turn-bar">
+        <div class="turn-bar-label">
+          <span id="lp-turn-text">진행: 1 / 120개월</span>
+          <span id="lp-diff-label" style="color:var(--blue)">이지</span>
+        </div>
+        <div class="turn-bar-track">
+          <div class="turn-bar-fill" id="turn-fill" style="width:0.83%"></div>
+        </div>
+      </div>
+
+      <!-- 재무 지표 -->
+      <div class="stat-row">
+        <span class="stat-label">💰 보유 현금</span>
+        <span class="stat-value v-green" id="lp-capital">100,000,000원</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🏦 대출금</span>
+        <span class="stat-value v-red" id="lp-debt">0원</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">📈 순자산</span>
+        <span class="stat-value" id="lp-networth">100,000,000원</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">⭐ 브랜드 가치</span>
+        <span class="stat-value" id="lp-brand">0 pt</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">📊 시장 점유율</span>
+        <span class="stat-value v-blue" id="lp-share">0.0%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🛡️ 가격 저항성</span>
+        <span class="stat-value" id="lp-resist">0.0%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">📣 마케팅 인지도</span>
+        <span class="stat-value v-purple" id="lp-awareness">–</span>
+      </div>
+
+      <!-- 신용등급 -->
+      <div class="grade-row">
+        <span class="stat-label">🏦 신용등급</span>
+        <div>
+          <div class="grade-letter gB" id="lp-grade">B</div>
+          <div class="grade-detail" id="lp-grade-detail">연 6.0% · 한도 1억</div>
+        </div>
+      </div>
+
+      <!-- M&A / 부동산 -->
+      <div class="stat-row">
+        <span class="stat-label">🏠 부동산</span>
+        <span class="stat-value" id="lp-realty">월세</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🎰 M&A 횟수</span>
+        <span class="stat-value v-dim" id="lp-mna">0회</span>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">현재 계약</div>
+
+      <!-- 계약 박스 -->
+      <div class="contract-box" id="contract-box">
+        <div class="contract-none">아직 도매업체를 선택하지 않았습니다</div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">월별 손익 (최근 12개월)</div>
+
+      <!-- 막대 그래프 -->
+      <div class="chart-wrap">
+        <div class="chart-bars" id="profit-chart">
+          <div class="chart-baseline"></div>
+          <!-- JS로 렌더링 -->
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- 중앙 패널 -->
+  <main class="panel-center">
+
+    <!-- AI 어드바이저 -->
+    <div class="advisor-bar">
+      <div class="advisor-avatar" id="adv-avatar">🤖</div>
+      <div class="advisor-body">
+        <div class="advisor-mode" id="adv-mode">AI 비서 (Easy)</div>
+        <div class="advisor-bubble advisor-easy" id="adv-bubble">
+          난이도를 선택하면 첫 브리핑이 시작됩니다. 아이템을 검색하고 도매업체를 선택해 주세요.
+        </div>
+      </div>
+    </div>
+
+    <!-- 경제 상황 배너 -->
+    <div class="eco-banner eco-stable" id="eco-banner">
+      <span class="eco-icon" id="eco-icon">➡️</span>
+      <div>
+        <div class="eco-name" id="eco-name">평시</div>
+        <div class="eco-desc" id="eco-desc">시장이 안정적으로 운영되고 있습니다</div>
+      </div>
+      <span class="eco-badge badge-stable" id="eco-badge">T1 / 120</span>
+    </div>
+
+    <!-- 핵심 조작부 -->
+    <div class="ops">
+      <div class="ops-title">⚡ 이번 달 조작</div>
+
+      <!-- 가격 설정 -->
+      <div class="price-block">
+        <div class="price-hint">
+          <span>판매가 설정</span>
+          <span id="price-cost-hint">도매가: 선택 전</span>
+        </div>
+        <div class="price-row">
+          <input type="range" id="price-slider" class="price-slider"
+            min="0" max="500000" step="500" value="0">
+          <input type="number" id="price-input" class="price-input"
+            placeholder="0" min="0" step="100">
+          <span class="price-unit">원</span>
+        </div>
+        <div class="bep-row">
+          <div class="bep-cell">
+            <div class="bep-lbl">월 고정비</div>
+            <div class="bep-val" id="bep-fixed">–</div>
+          </div>
+          <div class="bep-cell">
+            <div class="bep-lbl">개당 마진</div>
+            <div class="bep-val" id="bep-margin">–</div>
+          </div>
+          <div class="bep-cell">
+            <div class="bep-lbl">BEP</div>
+            <div class="bep-val" id="bep-qty">–</div>
+          </div>
+          <div class="bep-cell">
+            <div class="bep-lbl">마진율</div>
+            <div class="bep-val" id="bep-rate">–</div>
+          </div>
+        </div>
+        <div class="below-cost" id="below-cost">
+          ⛔ 판매가가 도매가보다 낮습니다 — 팔수록 손해!
+        </div>
+      </div>
+
+      <!-- HR 교육 -->
+      <div class="hr-block">
+        <div class="hr-head">
+          <span style="font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;">
+            👥 직원 교육
+          </span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="hr-pips">
+              <div class="hr-pip" id="pip-sales"></div>
+              <div class="hr-pip" id="pip-prod"></div>
+            </div>
+            <span class="hr-lim" id="hr-limit-text">교육 가능</span>
+          </div>
+        </div>
+        <button class="hr-btn" id="hr-sales">
+          <span class="hr-icon">💼</span>
+          <div class="hr-info">
+            <div class="hr-name">영업/CS 교육</div>
+            <div class="hr-eff">가격 저항성 +2% 완화</div>
+          </div>
+          <span class="hr-cost hr-cost-sales">50만원</span>
+        </button>
+        <!-- 마케팅: 예산 입력 방식 (개편) -->
+        <div class="hr-btn" id="hr-mkt-wrap" style="flex-direction:column;align-items:stretch;gap:6px;padding:9px 11px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="hr-icon">📢</span>
+            <div class="hr-info">
+              <div class="hr-name">마케팅 진행</div>
+              <div class="hr-eff">예산 비례 브랜드↑ · 인지도 가중치↑</div>
+            </div>
+            <span class="hr-cost hr-cost-mkt" id="mkt-used-badge">가능</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" id="mkt-budget-input"
+              style="flex:1;padding:6px 8px;background:var(--s3);border:1.5px solid var(--border);
+                     border-radius:5px;color:var(--text);font-size:12px;font-weight:700;text-align:right;"
+              placeholder="예산 입력 (원)" min="100000" step="100000"/>
+            <button id="hr-mkt" class="hr-btn"
+              style="flex:none;width:auto;padding:6px 12px;margin:0;font-size:11px;font-weight:700;">
+              실행
+            </button>
+          </div>
+          <div id="mkt-preview" style="font-size:10px;color:var(--dim);min-height:12px;"></div>
+        </div>
+        <button class="hr-btn" id="hr-prod">
+          <span class="hr-icon">🚛</span>
+          <div class="hr-info">
+            <div class="hr-name">물류/생산 교육</div>
+            <div class="hr-eff">산재 위험도 -5%</div>
+          </div>
+          <span class="hr-cost hr-cost-prod">50만원</span>
+        </button>
+      </div>
+
+      <!-- 공장 관리 -->
+      <div class="factory-block">
+        <div class="factory-title">🏭 자체 공장 관리</div>
+        <div class="factory-btns">
+          <button class="factory-btn fbtn-build" id="factory-build">설립 (5억)</button>
+          <button class="factory-btn fbtn-upgrade" id="factory-upgrade" disabled>업그레이드 (1억)</button>
+          <button class="factory-btn fbtn-product" id="factory-product" disabled>품목 변경 (5천)</button>
+        </div>
+        <div class="factory-status" id="factory-status">공장 미설립 — 원가 절감 없음</div>
+        <button id="factory-safety-toggle"
+          style="display:none;width:100%;margin-top:5px;padding:6px;border-radius:6px;
+                 font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--green);
+                 background:rgba(63,185,80,.1);color:var(--green);transition:all .2s;"
+          title="안전관리비 월 500만원 / OFF 시 산재 위험 +5%/턴">
+          🔒 안전관리비 ON (월 500만원)
+        </button>
+      </div>
+
+      <!-- 결재 서류 카드 -->
+      <div class="doc-section" id="doc-section">
+        <div class="doc-section-title">📋 월간 결재 서류 — 선택 시 이번 달 마감</div>
+        <div class="doc-cards" id="doc-cards">
+          <div style="color:var(--dim);font-size:10px;padding:6px 0;">도매업체 선택 후 가격 설정 시 생성됩니다.</div>
+        </div>
+      </div>
+      <!-- 다음 달로 버튼 (결재 카드 선택 또는 직접 클릭) -->
+      <button class="next-btn" id="next-btn" disabled>
+        ▶ 다음 달로 (도매업체 미선택)
+      </button>
+    </div>
+
+    <!-- 대시보드 -->
+    <div class="dash-grid">
+      <div class="dash-cell">
+        <div class="dash-lbl">이번 달 순이익</div>
+        <div class="dash-val" id="dash-profit" style="color:var(--dim)">–</div>
+      </div>
+      <div class="dash-cell">
+        <div class="dash-lbl">시장 총 수요</div>
+        <div class="dash-val" id="dash-demand" style="color:var(--dim)">–</div>
+      </div>
+      <div class="dash-cell">
+        <div class="dash-lbl">내 판매량</div>
+        <div class="dash-val" id="dash-sold" style="color:var(--dim)">–</div>
+      </div>
+      <div class="dash-cell">
+        <div class="dash-lbl">누적 총이익</div>
+        <div class="dash-val" id="dash-accum" style="color:var(--dim)">–</div>
+      </div>
+    </div>
+
+    <!-- 액션 버튼 행 -->
+    <div class="action-row">
+      <button class="action-btn" id="btn-realty">🏠 부동산</button>
+      <button class="action-btn" id="btn-loan">💳 대출/상환</button>
+      <button class="action-btn action-btn-p" id="btn-mna">🎰 M&A</button>
+      <button class="action-btn action-btn-g" id="btn-meta">✨ 업적</button>
+    </div>
+
+    <!-- 통합 하단 -->
+    <div class="bottom-integrated">
+      <div class="bi-col">
+        <div class="bi-title">🏭 도매업체 탐색</div>
+        <form id="search-form" style="display:flex;gap:4px;margin-bottom:4px;" onsubmit="return false;">
+          <input type="text" id="item-search-input" style="flex:1;padding:4px 7px;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10px;" placeholder="아이템명…" maxlength="40" autocomplete="off"/>
+          <button type="submit" id="search-btn" style="padding:4px 9px;background:var(--blue);color:#0D1117;border:none;border-radius:5px;font-weight:700;font-size:10px;cursor:pointer;">🔍</button>
+        </form>
+        <div id="search-status" style="font-size:9px;color:var(--dim);margin-bottom:3px;min-height:11px;"></div>
+        <div style="display:flex;gap:2px;margin-bottom:4px;">
+          <div class="vendor-tab" id="tab-cheap"    data-type="cheap"    style="flex:1;padding:3px 4px;text-align:center;font-size:9px;cursor:pointer;border-radius:4px;background:var(--s2);border:1px solid var(--border);">💰</div>
+          <div class="vendor-tab" id="tab-standard" data-type="standard" style="flex:1;padding:3px 4px;text-align:center;font-size:9px;cursor:pointer;border-radius:4px;background:var(--s2);border:1px solid var(--border);">⚖️</div>
+          <div class="vendor-tab" id="tab-premium"  data-type="premium"  style="flex:1;padding:3px 4px;text-align:center;font-size:9px;cursor:pointer;border-radius:4px;background:var(--s2);border:1px solid var(--border);">⭐</div>
+        </div>
+        <div class="vendor-card-area" id="vendor-card-area" style="font-size:10px;"><div style="color:var(--dim);font-size:9px;">아이템 검색 후 업체를 선택하세요</div></div>
+        <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:1px;">
+          <div style="display:flex;justify-content:space-between;font-size:9px;"><span style="color:var(--dim)">실효금리</span><span id="eco-rate" style="color:var(--yellow);font-weight:700">6.0%</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;"><span style="color:var(--dim)">수요배율</span><span id="eco-mul">×1.0</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;"><span style="color:var(--dim)">월이자</span><span id="eco-interest" style="color:var(--red);font-weight:700">0원</span></div>
+        </div>
+      </div>
+      <div class="bi-col">
+        <div class="bi-title">⚔️ 라이벌 동향</div>
+        <div id="rivals-panel" style="font-size:10px;"><div style="color:var(--dim);">턴 진행 후 표시</div></div>
+      </div>
+      <div class="bi-col">
+        <div class="bi-title">📋 이벤트 로그</div>
+        <div class="log-list" id="log-list" style="max-height:70px;overflow-y:auto;"><div class="log-item log-info">게임 시작 대기 중…</div></div>
+        <div class="status-board" style="margin-top:4px;">
+          <div class="status-board-title">⚡ 현재 시장 효과</div>
+          <div id="status-board-list"><div class="status-none">현재 특이 사항 없음</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 하단 패널 (숨김 — 위에 통합됨) -->
+  
+
+  <!-- 우측 패널: 파이 차트 + 라이벌 -->
+  <aside class="panel-right">
+    <div class="rp-header">📊 시장 점유율</div>
+    <div class="pie-wrap">
+      <div style="position:relative;width:120px;height:120px;">
+        <div class="pie-canvas" id="pie-canvas"></div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+          <span class="pie-center-text" id="pie-center">0%</span>
+        </div>
+      </div>
+      <div class="pie-legend" id="pie-legend">
+        <div class="pie-legend-row"><div class="pie-dot" style="background:var(--blue)"></div><span class="pie-name">나</span><span class="pie-pct" id="pie-my-pct">0%</span></div>
+      </div>
+    </div>
+    <div class="rp-rivals" id="rp-rivals">
+      <div style="font-size:9px;color:var(--dim);">라이벌 정보 없음</div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- 결재 결과 팝업 -->
+<div id="doc-result-ov" class="doc-result-ov hidden">
+  <div class="doc-result-box">
+    <div class="doc-result-icon" id="dr-icon">🎲</div>
+    <div class="doc-result-title" id="dr-title">결과</div>
+    <div class="doc-result-desc" id="dr-desc"></div>
+    <div class="doc-result-bar" id="dr-bar"></div>
+  </div>
+</div>
+
+<!-- ── Step 2: AI 로딩 오버레이 ───────────────────── -->
+<div id="ai-loading" class="hidden">
+  <div class="ai-loading-card">
+    <div class="ai-loading-spinner"></div>
+    <div class="ai-loading-title">AI가 시장 데이터를 분석 중입니다...</div>
+    <div class="ai-loading-sub" id="ai-loading-sub">Gemini API 호출 중 — 잠시만 기다려 주세요</div>
+  </div>
+</div>
+
+<!-- ── 정산 모달 ────────────────────────────────── -->
+<div class="modal-overlay hidden" id="report-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">📋 월간 정산 리포트</span>
+      <button class="modal-close" id="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">📊 이번 달 성과</div>
+      <div class="report-row"><span class="report-lbl">총 판매량</span><span class="report-val" id="rp-sold">–</span></div>
+      <div class="report-row"><span class="report-lbl">매출</span><span class="report-val" id="rp-revenue">–</span></div>
+      <div class="report-row"><span class="report-lbl">매출 원가</span><span class="report-val" id="rp-cogs">–</span></div>
+      <div class="report-row"><span class="report-lbl">고정비 (이자+운영비)</span><span class="report-val" id="rp-fixed">–</span></div>
+          <div class="report-row" style="padding-left:10px;border-top:none;"><span class="report-lbl" style="font-size:9px;color:var(--dim)" id="rp-fixed-sub"></span></div>
+      <div class="profit-badge profit-pos" id="rp-profit-badge">
+        <span class="profit-label">순이익</span>
+        <span class="profit-value" id="rp-profit">–</span>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">📈 시장 점유율</div>
+      <div class="report-row"><span class="report-lbl">내 점유율</span><span class="report-val" id="rp-share">–</span></div>
+      <div id="rp-rivals-section"></div>
+    </div>
+    <button class="confirm-btn" id="report-confirm-btn">✓ 확인하고 다음 달 준비</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  캐피로그 v1.0 — Step 1: 상태 관리 & UI 뼈대
+// ════════════════════════════════════════════════════════
+
+// ── 유틸 ─────────────────────────────────────────────
+const fmt  = n => Math.abs(n).toLocaleString('ko-KR');
+const fmtW = n => (n < 0 ? '-' : '') + fmt(n) + '원';
+const sign = n => (n >= 0 ? '+' : '') + fmtW(n);
+const pct  = n => (n * 100).toFixed(1) + '%';
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+function addLog(msg, type = 'info') {
+  const list = document.getElementById('log-list');
+  if (!list) return;
+  const item = document.createElement('div');
+  item.className = `log-item log-${type}`;
+  item.textContent = `T${gameState.turn}  ${msg}`;
+  list.prepend(item);
+  while (list.children.length > 30) list.lastChild.remove();
+}
+
+// ── gameState ─────────────────────────────────────────
+const gameState = {
+  // 기본 재무
+  capital:       100_000_000,
+  debt:          0,
+  interestRate:  0.048,        // 연이율 (난이도에 따라 변경)
+  propertyValue: 10_000_000,   // 부동산 자산 가치
+  brandValue:    0,
+  priceResistance: 0,          // 0.0 ~ 0.5
+
+  // 게임 진행
+  turn:          1,
+  maxTurns:      120,
+  difficulty:    'easy',
+  gameStatus:    'playing',    // 'playing' | 'bankrupt' | 'clear'
+  sellPrice:     0,
+  monthlyFixedCost: 500_000,
+
+  // 시장
+  marketShare:   0,
+  itemCategory:  'normal',     // 'essential' | 'normal' | 'luxury'
+
+  // 계약
+  wholesaleOptions: [],        // [{name, type, unitCost, qualityScore, description}]
+  selectedVendor:   null,      // 현재 선택된 도매업체 객체
+  currentVendorTab: 'cheap',   // UI 탭 상태
+
+  // 라이벌
+  rivals: [],
+
+  // 공장
+  factory: {
+    built:        false,
+    buildTurnsLeft: 0,
+    safetyOn:     true,
+    accidentRisk: 0,
+    upgradeLevel: 0,
+    shutdownLeft: 0,
+  },
+
+  // HR — 개편: 3-트랙 분리 (영업/생산/마케팅)
+  salesTraining: { count: 0, max: 10, usedThisTurn: false },  // 영업/CS
+  prodTraining:  { count: 0, max: 10, usedThisTurn: false },  // 물류/생산
+  mktThisTurn:   false,   // 마케팅: 턴당 1회 제한 플래그
+  marketing: {            // 마케팅 누적 통계
+    totalSpent:   0,      // 누적 마케팅 예산
+    awarenessBonus: 0,    // 브랜드 인지도 보너스 (매력도 가중치)
+  },
+  // 호환성 유지용 (망각 곡선 등 참조)
+  hr: {
+    trainingThisTurn: 0,   // 사용 안 함 — 하위 호환
+    totalTrainings:   0,   // 영업+생산 합산
+    lastTrainTurn:    0,
+  },
+
+  // 부동산
+  realty: 'monthly',   // 'monthly' | 'jeonse' | 'owned'
+
+  // M&A
+  mna: { count: 0, opCostMultiplier: 1.0 },
+
+  // 담합
+  cartel: { active: false, bustedCount: 0 },
+
+  // 경제
+  economy: { phase: 'stable' },  // 'boom' | 'stable' | 'recession'
+
+  // 기록
+  profitHistory:      [],  // 최근 12개월 순이익 배열
+  cumulativeProfit:   0,
+  lastTurnResult:     null,
+
+  // 스토리 & 메타
+  storyShown: {},
+
+  // Step 4-1: 랜덤 이벤트 활성 효과 추적
+  activeEffects: [],   // [{id, name, type, value, turnsLeft, appliedTurn}]
+};
+
+// 난이도별 초기값
+const DIFF_CONFIG = {
+  easy:   { capital: 100_000_000, debt: 0,          interestRate: 0.048, rivalCount: 1 },
+  normal: { capital:  50_000_000, debt: 0,          interestRate: 0.060, rivalCount: 1 },
+  hard:   { capital:  30_000_000, debt: 0,          interestRate: 0.060, rivalCount: 2 },
+  insane: { capital:  10_000_000, debt: 50_000_000, interestRate: 0.144, rivalCount: 4 },
+};
+const DIFF_LABEL = { easy:'이지', normal:'노멀', hard:'하드', insane:'인세인' };
+
+function applyDifficulty(diff) {
+  const cfg = DIFF_CONFIG[diff];
+  gameState.difficulty     = diff;
+  gameState.capital        = cfg.capital;
+  gameState.debt           = cfg.debt;
+  gameState.interestRate   = cfg.interestRate;
+  // 새 3-트랙 HR 필드 초기화 (재시작/난이도 변경 시)
+  gameState.salesTraining  = { count: 0, max: 10, usedThisTurn: false };
+  gameState.prodTraining   = { count: 0, max: 10, usedThisTurn: false };
+  gameState.mktThisTurn    = false;
+  gameState.marketing      = { totalSpent: 0, awarenessBonus: 0 };
+  gameState.hr             = { trainingThisTurn: 0, totalTrainings: 0, lastTrainTurn: 0 };
+  gameState.activeEffects  = [];
+  // 라이벌 초기화 (더미)
+  gameState.rivals = Array.from({ length: cfg.rivalCount }, (_, i) => ({
+    name: ['라이벌 A', '라이벌 B', '라이벌 C', '라이벌 D'][i],
+    capital:    20_000_000,
+    brandValue: Math.floor(Math.random() * 20),
+    priceResistance: 0.02,
+    marketShare: 0,
+    pattern: ['aggressive','premium','copycat'][i % 3],
+    sellPrice: 0,
+    qualityScore: 80 + Math.floor(Math.random() * 60),
+    bankrupt: false,
+  }));
+}
+
+// ── updateUI — 핵심 동기화 함수 ───────────────────────
+function updateUI() {
+  const s = gameState;
+  const nw = s.capital + s.propertyValue - s.debt;
+
+  // ── 좌측 패널 ──
+  setText('lp-capital',  fmtW(s.capital),   s.capital >= 0 ? 'var(--green)' : 'var(--red)');
+  setText('lp-debt',     fmtW(s.debt),       'var(--red)');
+  setText('lp-networth', fmtW(nw),           nw >= 0 ? 'var(--green)' : 'var(--red)');
+  setText('lp-brand',    s.brandValue + ' pt');
+  // 마케팅 인지도 보너스 표시
+  const awarenessEl = document.getElementById('lp-awareness');
+  if (awarenessEl) {
+    const ab = (s.marketing?.awarenessBonus || 0);
+    awarenessEl.textContent = ab > 0
+      ? `+${(ab*100).toFixed(1)}% 인지도` : '–';
+    awarenessEl.style.color = ab > 0 ? 'var(--purple)' : 'var(--dim)';
+  }
+  setText('lp-share',    pct(s.marketShare), 'var(--blue)');
+  setText('lp-resist',   pct(s.priceResistance));
+  setText('lp-mna',      s.mna.count + '회');
+  setText('lp-realty',   { monthly:'월세', jeonse:'전세', owned:'소유' }[s.realty] || '월세');
+
+  // 신용등급
+  const grade = calcCreditGrade(nw);
+  const gradeEl = document.getElementById('lp-grade');
+  if (gradeEl) { gradeEl.textContent = grade; gradeEl.className = 'grade-letter g' + grade; }
+  const GRADE_DETAIL = {
+    A: '연 4.8% · 한도 순자산×200%',
+    B: '연 6.0% · 한도 순자산×100%',
+    C: '연 8.4% · 한도 순자산×50%',
+    D: '연 14.4% · 한도 1천만',
+  };
+  setText('lp-grade-detail', GRADE_DETAIL[grade]);
+
+  // 턴 진행
+  setText('turn-badge',   s.turn + '개월 차');
+  setText('lp-turn-text', `진행: ${s.turn} / ${s.maxTurns}개월`);
+  setText('lp-diff-label', DIFF_LABEL[s.difficulty] || '');
+  const fillEl = document.getElementById('turn-fill');
+  if (fillEl) fillEl.style.width = (s.turn / s.maxTurns * 100) + '%';
+
+  // 계약 박스
+  updateContractBox();
+
+  // 막대 그래프
+  renderProfitChart();
+
+  // ── 중앙 패널 ──
+  // 경제 배너
+  updateEcoBanner();
+  // BEP
+  updateBEP();
+  // 다음달 버튼
+  const nb = document.getElementById('next-btn');
+  if (nb) {
+    const ready = !!s.selectedVendor && s.sellPrice > 0;
+    nb.disabled = !ready;
+    nb.textContent = ready
+      ? `▶ 결재 없이 넘어가기 (${s.turn}개월 차)`
+      : `▶ 결재 없이 넘어가기 (${!s.selectedVendor ? '도매업체 미선택' : '가격 설정 필요'})`;
+  }
+  // HR 버튼 상태
+  updateHRButtons();
+  // 공장 상태
+  updateFactoryStatus();
+
+  // ── 하단 패널 ──
+  updateBottomPanel();
+
+  // B-07: 파이 차트 · 사옥 비주얼 갱신
+  if (typeof renderPieChart  === 'function') renderPieChart();
+  if (typeof updateHQVisual  === 'function') updateHQVisual();
+  if (typeof updateTimeline  === 'function') updateTimeline();
+  if (typeof updateDocSection=== 'function') updateDocSection();
+
+  // ── Step 3 확장: 담합 버튼·블랙스완·신용등급 ─────────
+  const _d = gameState?.difficulty || '';           // B-10: gameState에서 직접 참조
+  const _cBtn = document.getElementById('cartel-btn');
+  if (_cBtn) {
+    _cBtn.style.display = (_d==='hard'||_d==='insane') ? 'block' : 'none';
+    _cBtn.classList.toggle('active', !!(gameState.cartel?.active));
+    _cBtn.textContent = gameState.cartel?.active
+      ? '🤝 담합 활성 (클릭하여 해제)'
+      : '🤝 담합 활성화 (×1.5 수익 / 적발 15%)';
+  }
+  const _ecoBadge = document.getElementById('eco-badge');
+  if (_ecoBadge) {
+    if (typeof _bsActive !== 'undefined' && _bsActive)
+      _ecoBadge.textContent = '⚠️ '+_bsActive.title.slice(0,6)+'… '+_bsTurnsLeft+'턴';
+    else
+      _ecoBadge.textContent = 'T'+gameState.turn+' / 120';
+  }
+  // P-02: 블랙스완 활성 시 ☠️ 마커 강조
+  const _m80 = document.getElementById('tl-m80');
+  if (_m80) _m80.classList.toggle('tl-marker-bs-active',
+    typeof _bsActive !== 'undefined' && !!_bsActive);
+  const _nw2 = s.capital + s.propertyValue - s.debt;
+  const _gr2 = calcCreditGrade(_nw2);
+  const _grEl2 = document.getElementById('lp-grade');
+  if (_grEl2) { _grEl2.textContent = _gr2; _grEl2.className = 'grade-letter g'+_gr2; }
+  if (typeof getGrade === 'function' && typeof CREDIT_GRADES !== 'undefined') {
+    const _gc2 = CREDIT_GRADES[getGrade(_nw2)];
+    setText('lp-grade-detail', (getEffRate()*100).toFixed(1)+'% 연리 · '+(_gc2?.label||''));
+  }
+
+  // ── Step 4-2 확장: 상태 보드·수요배율·금리 표시 ──────
+  if (typeof renderStatusBoard === 'function') renderStatusBoard();
+  if (typeof getActiveEffectModifier === 'function' && typeof EV !== 'undefined') {
+    const _evDM2 = getActiveEffectModifier(EV.MARKET_MUL);
+    const _ecoBase2 = (typeof ECO_WEIGHTS !== 'undefined')
+      ? (ECO_WEIGHTS[s.itemCategory]?.[s.economy.phase] ?? 1.0) : 1.0;
+    const _totalMul2 = _ecoBase2 * (1 + _evDM2);
+    setText('eco-mul', '×' + _totalMul2.toFixed(2)
+      + (_evDM2 !== 0 ? ` (이벤트 ${_evDM2>=0?'+':''}${(_evDM2*100).toFixed(0)}%)` : ''));
+    setText('eco-rate', (getEffRate()*100).toFixed(1) + '%');
+  }
+}
+
+function setText(id, text, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  if (color) el.style.color = color;
+}
+
+// ── 신용등급 ────────────────────────────────────────
+function calcCreditGrade(netWorth) {
+  if (netWorth >= 500_000_000) return 'A';
+  if (netWorth >= 100_000_000) return 'B';
+  if (netWorth >=  50_000_000) return 'C';
+  return 'D';
+}
+
+// ── 경제 배너 ─────────────────────────────────────
+const ECO_META = {
+  boom:      { cls:'eco-boom',      badgeCls:'badge-boom',      icon:'🚀', name:'호황기', desc:'소비 심리 개선 · 수요 증가' },
+  stable:    { cls:'eco-stable',    badgeCls:'badge-stable',    icon:'➡️', name:'평시',   desc:'시장이 안정적으로 운영 중' },
+  recession: { cls:'eco-recession', badgeCls:'badge-recession', icon:'📉', name:'불황기', desc:'경기 침체 · 수요 위축' },
+};
+function updateEcoBanner() {
+  const m = ECO_META[gameState.economy.phase] || ECO_META.stable;
+  const banner = document.getElementById('eco-banner');
+  if (banner) banner.className = 'eco-banner ' + m.cls;
+  setText('eco-icon', m.icon);
+  setText('eco-name', m.name);
+  setText('eco-desc', m.desc);
+  const chip = document.getElementById('eco-badge');
+  if (chip) { chip.textContent = `T${gameState.turn} / ${gameState.maxTurns}`; chip.className = 'eco-badge ' + m.badgeCls; }
+  // 거시 지표 (하단)
+  setText('eco-rate',     (gameState.interestRate * 100).toFixed(1) + '%');
+  const ecoMul = getEcoWeight();
+  setText('eco-mul', '×' + ecoMul.toFixed(1));
+  const monthlyInt = Math.round(gameState.debt * gameState.interestRate / 12);
+  setText('eco-interest', fmtW(monthlyInt));
+}
+
+// 경제 가중치 (아이템 카테고리 + 경기 국면)
+const ECO_WEIGHTS = {
+  essential: { boom: 0.9, stable: 1.0, recession: 1.3 },
+  normal:    { boom: 1.2, stable: 1.0, recession: 0.8 },
+  luxury:    { boom: 1.8, stable: 1.0, recession: 0.4 },
+};
+function getEcoWeight() {
+  return ECO_WEIGHTS[gameState.itemCategory]?.[gameState.economy.phase] ?? 1.0;
+}
+
+// ── BEP 계산 ─────────────────────────────────────
+function updateBEP() {
+  const sp = gameState.sellPrice;
+  const uc = gameState.selectedVendor?.unitCost || 0;
+  const factoryDiscount = gameState.factory.built && gameState.factory.buildTurnsLeft <= 0 ? 0.6 : 1.0;
+  const netCost = Math.round(uc * factoryDiscount);
+  const margin  = sp - netCost;
+  const monthlyInt = Math.round(gameState.debt * gameState.interestRate / 12);
+  const realtyRent = gameState.realty === 'monthly' ? 1_000_000 : 0;
+  const safetyCost = gameState.factory.built && gameState.factory.safetyOn ? 5_000_000 : 0;
+  const totalFixed = Math.round((monthlyInt + gameState.monthlyFixedCost + realtyRent + safetyCost) * gameState.mna.opCostMultiplier);
+  const bep = margin > 0 ? Math.ceil(totalFixed / margin) : Infinity;
+  const rate = sp > 0 && netCost > 0 ? Math.round((1 - netCost / sp) * 100) : 0;
+
+  setText('bep-fixed',  fmtW(totalFixed));
+  setText('bep-margin', margin > 0 ? sign(margin) : '–');
+  setText('bep-qty',    isFinite(bep) ? fmt(bep) + '개' : '∞');
+  setText('bep-rate',   gameState.selectedVendor ? rate + '%' : '–');
+  setText('price-cost-hint', gameState.selectedVendor ? '도매가: ' + fmtW(netCost) : '도매가: 선택 전');
+
+  const belowCostEl = document.getElementById('below-cost');
+  if (belowCostEl) belowCostEl.style.display = (sp > 0 && sp < netCost && netCost > 0) ? 'block' : 'none';
+}
+
+// ── 막대 그래프 렌더 ──────────────────────────────
+function renderProfitChart() {
+  const chart = document.getElementById('profit-chart');
+  if (!chart) return;
+
+  // 기존 막대 제거 (baseline 유지)
+  [...chart.children].forEach(el => { if (!el.classList.contains('chart-baseline')) el.remove(); });
+
+  const history = gameState.profitHistory.slice(-12);
+  if (history.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:10px;';
+    empty.textContent = '데이터 없음';
+    chart.appendChild(empty);
+    return;
+  }
+
+  const maxAbs = Math.max(...history.map(v => Math.abs(v)), 1);
+  const HALF = 28; // 막대 최대 절반 높이(px)
+
+  history.forEach((val, i) => {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    col.dataset.tip = `T${gameState.turn - history.length + i}  ${sign(val)}`;
+
+    const heightPx = Math.max(2, Math.round(Math.abs(val) / maxAbs * HALF));
+    const bar = document.createElement('div');
+    bar.className = val >= 0 ? 'bar-pos' : 'bar-neg';
+    bar.style.height = heightPx + 'px';
+
+    col.appendChild(bar);
+    chart.appendChild(col);
+  });
+}
+
+// ── 계약 박스 ─────────────────────────────────────
+function updateContractBox() {
+  const box = document.getElementById('contract-box');
+  if (!box) return;
+  const v = gameState.selectedVendor;
+  if (!v) {
+    box.innerHTML = '<div class="contract-none">아직 도매업체를 선택하지 않았습니다</div>';
+    return;
+  }
+  const typeColor = { cheap: 'var(--green)', standard: 'var(--blue)', premium: 'var(--yellow)' };
+  const typeLabel = { cheap: '저가형', standard: '표준형', premium: '고급형' };
+  box.innerHTML = `
+    <div class="contract-name">${v.name}</div>
+    <div class="contract-sub">
+      <span style="color:${typeColor[v.type]||'var(--dim)'}">${typeLabel[v.type]||''}</span>
+      &nbsp;·&nbsp;단가 ${fmtW(v.unitCost)}&nbsp;·&nbsp;품질 ${v.qualityScore}pt
+    </div>
+    <div class="contract-sub" style="margin-top:2px;font-style:italic">"${v.description || ''}"</div>`;
+}
+
+// ── HR 버튼 상태 (개편: 3-트랙) ──────────────────────
+function updateHRButtons() {
+  const s  = gameState;
+  const st = s.salesTraining;
+  const pt = s.prodTraining;
+
+  // 영업/CS 교육 버튼
+  const salesBtn = document.getElementById('hr-sales');
+  if (salesBtn) {
+    const salesBlocked = st.usedThisTurn || st.count >= st.max || s.capital < 500_000;
+    salesBtn.disabled = salesBlocked;
+    // 효과 설명 갱신
+    const salesEff = salesBtn.closest('.hr-btn')?.querySelector('.hr-eff');
+    if (salesEff) salesEff.textContent =
+      st.count >= st.max ? '최대 횟수 도달 (10/10)' : `저항성 +2% (${st.count}/${st.max}회)`;
+    const salesCost = salesBtn.closest('.hr-btn')?.querySelector('.hr-cost');
+    if (salesCost) salesCost.textContent = st.usedThisTurn ? '이번 달 완료' : '50만원';
+  }
+
+  // 물류/생산 교육 버튼
+  const prodBtn = document.getElementById('hr-prod');
+  if (prodBtn) {
+    const prodBlocked = pt.usedThisTurn || pt.count >= pt.max || s.capital < 500_000;
+    prodBtn.disabled = prodBlocked;
+    const prodEff = prodBtn.closest('.hr-btn')?.querySelector('.hr-eff');
+    if (prodEff) prodEff.textContent =
+      pt.count >= pt.max ? '최대 횟수 도달 (10/10)' : `산재위험 -5% (${pt.count}/${pt.max}회)`;
+    const prodCost = prodBtn.closest('.hr-btn')?.querySelector('.hr-cost');
+    if (prodCost) prodCost.textContent = pt.usedThisTurn ? '이번 달 완료' : '50만원';
+  }
+
+  // pip 상태: 영업/생산 각 pip
+  const pipS = document.getElementById('pip-sales');
+  const pipP = document.getElementById('pip-prod');
+  if (pipS) pipS.className = 'hr-pip' + (st.usedThisTurn ? ' hr-pip-on' : '');
+  if (pipP) pipP.className = 'hr-pip' + (pt.usedThisTurn ? ' hr-pip-on' : '');
+
+  // 요약 텍스트
+  const limText = document.getElementById('hr-limit-text');
+  if (limText) {
+    const allDone = st.usedThisTurn && pt.usedThisTurn;
+    limText.textContent = allDone ? '이번 달 완료' : '교육 가능';
+    limText.className   = 'hr-lim' + (allDone ? ' hr-lim-over' : '');
+  }
+
+  // 마케팅: 예산 입력 미리보기
+  const mktInput   = document.getElementById('mkt-budget-input');
+  const mktPreview = document.getElementById('mkt-preview');
+  const mktBadge   = document.getElementById('mkt-used-badge');
+  const mktBtn     = document.getElementById('hr-mkt');
+  if (mktBadge) mktBadge.textContent = s.mktThisTurn ? '이번 달 완료' : '가능';
+  if (mktBtn)   mktBtn.disabled      = s.mktThisTurn;
+  if (mktInput) {
+    mktInput.disabled = s.mktThisTurn;
+    const budget = parseInt(mktInput.value) || 0;
+    if (mktPreview && budget > 0 && !s.mktThisTurn) {
+      const brandGain     = calcMktBrandGain(budget);
+      const awarenessGain = calcMktAwarenessGain(budget);
+      mktPreview.textContent =
+        `브랜드 +${brandGain.toFixed(1)}pt · 인지도 가중치 +${(awarenessGain*100).toFixed(2)}%`;
+      mktPreview.style.color = 'var(--green)';
+    } else if (mktPreview) {
+      mktPreview.textContent = s.mktThisTurn ? '✓ 이번 달 마케팅 완료' : '예산 입력 시 효과 미리보기';
+      mktPreview.style.color = s.mktThisTurn ? 'var(--blue)' : 'var(--dim)';
+    }
+  }
+}
+
+// ── 공장 상태 표시 ─────────────────────────────────
+function updateFactoryStatus() {
+  const f = gameState.factory;
+  const statusEl = document.getElementById('factory-status');
+  const upgradeBtn = document.getElementById('factory-upgrade');
+  const productBtn = document.getElementById('factory-product');
+
+  if (upgradeBtn) upgradeBtn.disabled = !f.built;
+  if (productBtn) productBtn.disabled = !f.built;
+
+  if (!statusEl) return;
+  if (!f.built) {
+    statusEl.textContent = '공장 미설립 — 원가 절감 없음';
+    statusEl.style.color = 'var(--dim)';
+  } else if (f.buildTurnsLeft > 0) {
+    statusEl.textContent = `🔨 건설 중… ${f.buildTurnsLeft}턴 후 완공`;
+    statusEl.style.color = 'var(--yellow)';
+  } else {
+    const riskPct = Math.round(f.accidentRisk * 100);
+    statusEl.textContent = `✅ 운영 중 · Lv.${f.upgradeLevel} · 산재위험 ${riskPct}%`;
+    statusEl.style.color = f.safetyOn ? 'var(--green)' : 'var(--yellow)';
+  }
+  // B-08: 안전비 토글 버튼 가시성 및 상태 반영
+  const safetyBtn = document.getElementById('factory-safety-toggle');
+  if (safetyBtn) {
+    const active = f.built && f.buildTurnsLeft <= 0;
+    safetyBtn.style.display = active ? 'block' : 'none';
+    if (f.safetyOn) {
+      safetyBtn.textContent    = '🔒 안전관리비 ON (월 500만원) — 클릭하여 OFF';
+      safetyBtn.style.borderColor = 'var(--green)';
+      safetyBtn.style.color       = 'var(--green)';
+      safetyBtn.style.background  = 'rgba(63,185,80,.1)';
+    } else {
+      safetyBtn.textContent    = '⚠️ 안전관리비 OFF — 산재 위험 누적 중! 클릭하여 ON';
+      safetyBtn.style.borderColor = 'var(--yellow)';
+      safetyBtn.style.color       = 'var(--yellow)';
+      safetyBtn.style.background  = 'rgba(210,153,34,.1)';
+    }
+  }
+}
+
+// ── 하단 패널 ────────────────────────────────────
+function updateBottomPanel() {
+  // 도매업체 탭 렌더
+  renderVendorTab();
+  // 라이벌 패널
+  renderRivalsPanel();
+}
+
+function renderVendorTab() {
+  const types = ['cheap', 'standard', 'premium'];
+  types.forEach(t => {
+    const tab = document.getElementById('tab-' + t);
+    if (!tab) return;
+    tab.className = 'vendor-tab';
+    if (gameState.currentVendorTab === t) {
+      tab.className += ' active-' + t;
+    }
+  });
+
+  const area = document.getElementById('vendor-card-area');
+  if (!area) return;
+  const vendors = gameState.wholesaleOptions;
+  if (!vendors || vendors.length === 0) {
+    area.innerHTML = '<div style="color:var(--dim);font-size:11px;">아이템을 검색하면 도매업체 정보가 채워집니다</div>';
+    return;
+  }
+  const idx = { cheap: 0, standard: 1, premium: 2 }[gameState.currentVendorTab] ?? 0;
+  const v = vendors[idx];
+  if (!v) return;
+  const isSelected = gameState.selectedVendor?.name === v.name;
+  const factoryCost = gameState.factory.built && gameState.factory.buildTurnsLeft <= 0
+    ? Math.round(v.unitCost * 0.6) : v.unitCost;
+  area.innerHTML = `
+    <div class="vc-name">${v.name}</div>
+    <div class="vc-row"><span class="vc-lbl">도매 단가</span><span class="vc-val">${fmtW(v.unitCost)}</span></div>
+    <div class="vc-row"><span class="vc-lbl">실입고가 (공장 적용)</span><span class="vc-val" style="color:var(--green)">${fmtW(factoryCost)}</span></div>
+    <div class="vc-row"><span class="vc-lbl">품질 점수</span><span class="vc-val">${v.qualityScore + (gameState.factory.upgradeLevel || 0) * 20}pt</span></div>
+    <div class="vc-row"><span class="vc-lbl">설명</span><span class="vc-val" style="color:var(--dim);font-size:10px">${v.description || '–'}</span></div>
+    <button class="vc-select-btn ${isSelected ? 'selected' : ''}" data-vendor-idx="${idx}">
+      ${isSelected ? '✓ 현재 계약 중' : '이 업체와 계약하기'}
+    </button>`;
+
+  area.querySelector('[data-vendor-idx]')?.addEventListener('click', e => {
+    const i = parseInt(e.currentTarget.dataset.vendorIdx);
+    gameState.selectedVendor = vendors[i];
+    // B-06: 슬라이더 max를 도매가 × 8로 동적 갱신
+    const newMax = Math.round(vendors[i].unitCost * 8);
+    const slider = document.getElementById('price-slider');
+    const input  = document.getElementById('price-input');
+    if (slider) slider.max = newMax;
+    if (input)  input.max  = newMax;
+    addLog(`[계약] ${vendors[i].name} — ${vendors[i].type} · 단가 ${fmtW(vendors[i].unitCost)}`, 'contract');
+    toast(`${vendors[i].name} 계약 완료!`, 'good');
+    updateUI();
+  });
+}
+
+function renderRivalsPanel() {
+  const panel = document.getElementById('rivals-panel');
+  if (!panel) return;
+  if (!gameState.rivals.length) {
+    panel.innerHTML = '<div style="color:var(--dim);font-size:11px;">라이벌 없음</div>';
+    return;
+  }
+  panel.innerHTML = gameState.rivals.map(r => `
+    <div class="rival-row ${r.bankrupt ? 'v-dim' : ''}">
+      <span class="rival-name">${r.name}${r.bankrupt ? ' 💀' : ''}</span>
+      <span class="rival-price">${r.sellPrice > 0 ? fmtW(r.sellPrice) : '–'}</span>
+      <span class="rival-share">${pct(r.marketShare)}</span>
+    </div>`).join('');
+}
+
+// ── 도매업체 탭 클릭 ─────────────────────────────
+document.querySelectorAll('.vendor-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    gameState.currentVendorTab = tab.dataset.type;
+    renderVendorTab();
+  });
+});
+
+// ── 가격 슬라이더 ↔ 입력창 동기화 ─────────────────
+const priceSlider = document.getElementById('price-slider');
+const priceInput  = document.getElementById('price-input');
+function syncPrice(val) {
+  const v = Math.max(0, parseInt(val) || 0);
+  priceSlider.value   = v;
+  priceInput.value    = v;
+  gameState.sellPrice = v;
+  updateBEP();
+  const nb = document.getElementById('next-btn');
+  if (nb) {
+    const ready = !!gameState.selectedVendor && v > 0;
+    nb.disabled = !ready;
+    nb.textContent = ready ? `▶ 결재 없이 넘어가기 (${gameState.turn}개월 차)` : `▶ 결재 없이 넘어가기 (${!gameState.selectedVendor ? '도매업체 미선택' : '가격 설정 필요'})`;
+  }
+}
+priceSlider?.addEventListener('input', e => syncPrice(e.target.value));
+priceInput?.addEventListener('input',  e => syncPrice(e.target.value));
+
+// ════════════════════════════════════════════════════
+//  HR 시스템 (개편): 영업 / 생산 / 마케팅 3-트랙 분리
+// ════════════════════════════════════════════════════
+
+const HR_TRAIN_COST = 500_000;
+
+// ── 영업/CS 교육 ──────────────────────────────────
+function doSalesTrain() {
+  const st = gameState.salesTraining;
+  if (st.usedThisTurn)          { toast('이번 달 영업 교육 완료 (1턴 1회 제한)', 'warn'); return; }
+  if (st.count >= st.max)       { toast('영업 교육 최대 횟수 도달 (10회)', 'warn'); return; }
+  if (gameState.capital < HR_TRAIN_COST) { toast('자금 부족 (50만원 필요)', 'warn'); return; }
+
+  gameState.capital         -= HR_TRAIN_COST;
+  st.count++;
+  st.usedThisTurn            = true;
+  gameState.hr.lastTrainTurn = gameState.turn;
+  gameState.hr.totalTrainings++;
+
+  // 저항성 상승 (브랜드 비례 보너스 포함)
+  const brandP   = Math.min(0.10, gameState.brandValue / 1000);
+  const hrGain   = 0.02;
+  gameState.priceResistance = Math.min(0.50, gameState.priceResistance + hrGain + brandP);
+
+  addLog(`💼 영업/CS 교육 완료 (${st.count}/${st.max}회) — 저항성 +${((hrGain+brandP)*100).toFixed(1)}%`, 'good');
+  toast(`영업 교육 완료 (${st.count}/${st.max}회)`, 'good');
+  updateUI();
+}
+
+// ── 물류/생산 교육 ────────────────────────────────
+function doProdTrain() {
+  const pt = gameState.prodTraining;
+  if (pt.usedThisTurn)          { toast('이번 달 생산 교육 완료 (1턴 1회 제한)', 'warn'); return; }
+  if (pt.count >= pt.max)       { toast('생산 교육 최대 횟수 도달 (10회)', 'warn'); return; }
+  if (gameState.capital < HR_TRAIN_COST) { toast('자금 부족 (50만원 필요)', 'warn'); return; }
+
+  gameState.capital         -= HR_TRAIN_COST;
+  pt.count++;
+  pt.usedThisTurn            = true;
+  gameState.hr.lastTrainTurn = gameState.turn;
+  gameState.hr.totalTrainings++;
+
+  if (gameState.factory.built)
+    gameState.factory.accidentRisk = Math.max(0, (gameState.factory.accidentRisk||0) - 0.05);
+
+  addLog(`🚛 물류/생산 교육 완료 (${pt.count}/${pt.max}회) — 산재위험 -5%`, 'good');
+  toast(`생산 교육 완료 (${pt.count}/${pt.max}회)`, 'good');
+  updateUI();
+}
+
+// ── 마케팅 공식 ───────────────────────────────────
+/**
+ * 예산 → 브랜드 게인 (로그 체감 수익)
+ * 1천만원 기준 +9pt, 1억 +31pt, 10억 +60pt
+ */
+function calcMktBrandGain(budget) {
+  if (budget <= 0) return 0;
+  return Math.round(30 * Math.log10(budget / 10_000_000 + 1) * 10) / 10;
+}
+/**
+ * 예산 → 매력도 인지도 가중치 (경제 가중치 E에 곱해지는 추가 배율)
+ * 1천만원 기준 +1.5%, 1억 +5.2%, 최대 +30%
+ */
+function calcMktAwarenessGain(budget) {
+  if (budget <= 0) return 0;
+  return Math.min(0.30, 0.05 * Math.log10(budget / 10_000_000 + 1));
+}
+
+// ── 마케팅 실행 ───────────────────────────────────
+function doMarketing() {
+  if (gameState.mktThisTurn) { toast('이번 달 마케팅 완료 (1턴 1회 제한)', 'warn'); return; }
+
+  const input  = document.getElementById('mkt-budget-input');
+  const budget = Math.max(0, parseInt(input?.value || '0') || 0);
+
+  if (budget <= 0)                    { toast('마케팅 예산을 입력하세요', 'warn'); return; }
+  if (budget < 100_000)               { toast('최소 10만원 이상 입력하세요', 'warn'); return; }
+  if (gameState.capital < budget)     { toast('현금 부족: ' + fmtW(budget) + ' 필요', 'warn'); return; }
+
+  const brandGain     = calcMktBrandGain(budget);
+  const awarenessGain = calcMktAwarenessGain(budget);
+
+  gameState.capital                  -= budget;
+  gameState.brandValue                = Math.min(1000, gameState.brandValue + brandGain);
+  gameState.marketing.totalSpent     += budget;
+  gameState.marketing.awarenessBonus  = Math.min(0.30,
+    (gameState.marketing.awarenessBonus || 0) + awarenessGain);
+  gameState.mktThisTurn               = true;
+
+  if (input) input.value = '';
+
+  addLog(`📢 마케팅 ${fmtW(budget)} 집행 — 브랜드 +${brandGain.toFixed(1)}pt, 인지도 +${(awarenessGain*100).toFixed(2)}%`, 'good');
+  toast(`마케팅 완료! 브랜드 +${brandGain.toFixed(1)}pt`, 'good');
+  updateUI();
+}
+
+// ── 바인딩 ────────────────────────────────────────
+document.getElementById('hr-sales')?.addEventListener('click', doSalesTrain);
+document.getElementById('hr-prod') ?.addEventListener('click', doProdTrain);
+document.getElementById('hr-mkt')  ?.addEventListener('click', doMarketing);
+
+// 예산 입력창 변경 시 미리보기 갱신
+document.getElementById('mkt-budget-input')?.addEventListener('input', () => {
+  updateHRButtons();
+});
+
+// ── 공장 버튼 ─────────────────────────────────────
+// B-08: 안전비 토글 리스너
+document.getElementById('factory-safety-toggle')?.addEventListener('click', () => {
+  if (!gameState.factory.built) return;
+  gameState.factory.safetyOn = !gameState.factory.safetyOn;
+  const isOn = gameState.factory.safetyOn;
+  addLog(isOn ? '🔒 안전관리비 활성화 (월 500만원)' : '⚠️ 안전관리비 비활성화 — 산재 위험 누적 시작', isOn ? 'good' : 'warn');
+  toast(isOn ? '안전관리비 ON' : '⚠️ 안전관리비 OFF — 주의!', isOn ? 'good' : 'warn');
+  updateUI();
+});
+
+document.getElementById('factory-build')?.addEventListener('click', () => {
+  if (gameState.factory.built) { toast('이미 공장이 있습니다', 'warn'); return; }
+  if (gameState.capital < 500_000_000) { toast('자금 부족 (5억 필요)', 'warn'); return; }
+  gameState.capital -= 500_000_000;
+  gameState.factory.built = true;
+  gameState.factory.buildTurnsLeft = 3;
+  addLog('🏭 공장 건설 시작! 3턴 후 완공 예정', 'good');
+  toast('공장 건설 시작 (3턴 소요)', 'good');
+  updateUI();
+});
+document.getElementById('factory-upgrade')?.addEventListener('click', () => {
+  if (!gameState.factory.built) { toast('공장 없음', 'warn'); return; }
+  if (gameState.capital < 100_000_000) { toast('자금 부족 (1억 필요)', 'warn'); return; }
+  gameState.capital -= 100_000_000;
+  gameState.factory.upgradeLevel++;
+  addLog(`⬆️ 공장 업그레이드 Lv.${gameState.factory.upgradeLevel} — 품질 +20pt`, 'good');
+  toast('업그레이드 완료!', 'good');
+  updateUI();
+});
+document.getElementById('factory-product')?.addEventListener('click', () => {
+  if (!gameState.factory.built) { toast('공장 없음', 'warn'); return; }
+  const name = prompt('새 생산 품목명을 입력하세요:');
+  if (!name) return;
+  if (gameState.capital < 50_000_000) { toast('자금 부족 (5천만 필요)', 'warn'); return; }
+  gameState.capital -= 50_000_000;
+  gameState.selectedVendor = null;
+  addLog(`🔄 품목 변경: ${name} — 새 도매업체 탐색 필요`, 'info');
+  toast('품목 변경 완료. 새 도매업체를 선택하세요.', 'info');
+  updateUI();
+});
+
+// ── 모달 열기/닫기 (pointer-events 완전 처리) ──────
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.style.display     = '';
+  el.style.pointerEvents = '';
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('hidden');
+  el.style.display       = 'none';
+  el.style.pointerEvents = 'none';
+}
+// 닫기 버튼
+document.getElementById('modal-close-btn')?.addEventListener('click', () => {
+  closeModal('report-modal');
+  const nextBtn = document.getElementById('next-btn');
+  if (nextBtn && gameState.gameStatus === 'playing') {
+    nextBtn.disabled  = false;
+    nextBtn.innerHTML = '▶ 결재 없이 넘어가기';
+  }
+  _currentDocCards = [];
+  if (typeof generateDocCards === 'function') generateDocCards();
+  if (typeof renderDocCards   === 'function') renderDocCards(true);
+  if (typeof step5PostUI      === 'function') step5PostUI();
+  updateUI();
+});
+document.getElementById('report-confirm-btn')?.addEventListener('click', () => {
+  closeModal('report-modal');
+  const nextBtn = document.getElementById('next-btn');
+  if (nextBtn) {
+    nextBtn.disabled  = false;
+    nextBtn.innerHTML = `▶ 결재 없이 넘어가기`;
+  }
+  // B-03: 결재 카드 재생성
+  _currentDocCards = [];
+  if (typeof generateDocCards === 'function') generateDocCards();
+  if (typeof renderDocCards   === 'function') renderDocCards(true);
+  if (typeof step5PostUI      === 'function') step5PostUI();
+  updateUI();
+});
+// 배경 클릭으로 닫기 (모달 박스 내부 클릭은 버블링 차단)
+document.getElementById('report-modal')?.addEventListener('click', e => {
+  if (e.target !== e.currentTarget) return;
+  closeModal('report-modal');
+  const nextBtn = document.getElementById('next-btn');
+  if (nextBtn && gameState.gameStatus === 'playing') {
+    nextBtn.disabled  = false;
+    nextBtn.innerHTML = '▶ 결재 없이 넘어가기';
+  }
+  _currentDocCards = [];
+  if (typeof generateDocCards === 'function') generateDocCards();
+  if (typeof renderDocCards   === 'function') renderDocCards(true);
+  if (typeof step5PostUI      === 'function') step5PostUI();
+  updateUI();
+});
+
+// ════════════════════════════════════════════════════════
+//  Step 2-A: Gemini API 연동 — fetchWholesaleData()
+// ════════════════════════════════════════════════════════
+
+const GEMINI_KEY = 'AIzaSyDq7evD2CW0uLHymBZlqf9XcZdqJVq2wCI';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
+
+// 로딩 오버레이 제어 (pointer-events 완전 보장)
+function showAILoading(subText = '') {
+  const ov  = document.getElementById('ai-loading');
+  const sub = document.getElementById('ai-loading-sub');
+  if (sub && subText) sub.textContent = subText;
+  if (ov) { ov.classList.remove('hidden'); ov.style.display = ''; ov.style.pointerEvents = ''; }
+}
+function hideAILoading() {
+  const ov = document.getElementById('ai-loading');
+  if (ov) { ov.classList.add('hidden'); ov.style.display = 'none'; ov.style.pointerEvents = 'none'; }
+}
+
+async function fetchWholesaleData(itemName) {
+  showAILoading(`"${itemName}" 시장 분석 중…`);
+
+  const prompt = `유저가 '${itemName}'을(를) 검색했어. 이 아이템의 경제적 속성을 파악해 'essential', 'normal', 'luxury' 중 하나의 카테고리(itemCategory)를 정하고, 저가형, 표준형, 고급형 도매업체 3곳의 데이터(상호명, 입고단가, 품질점수)를 JSON 배열 형태로만 대답해.
+
+반드시 아래 JSON 형식만 출력해 (마크다운 코드블록 없이):
+{
+  "itemCategory": "normal",
+  "vendors": [
+    {"name":"상호명","type":"cheap",   "unitCost":15000,"qualityScore":70, "description":"한 줄 설명"},
+    {"name":"상호명","type":"standard","unitCost":35000,"qualityScore":120,"description":"한 줄 설명"},
+    {"name":"상호명","type":"premium", "unitCost":80000,"qualityScore":170,"description":"한 줄 설명"}
+  ]
+}`;
+
+  try {
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+      }),
+    });
+
+    if (!res.ok) throw new Error(`API 오류 ${res.status}: ${res.statusText}`);
+
+    const data = await res.json();
+    let raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // 마크다운 코드블록 제거
+    raw = raw.replace(/```json|```/g, '').trim();
+
+    const parsed = JSON.parse(raw);
+    if (!parsed.vendors || parsed.vendors.length < 3) throw new Error('도매업체 데이터 불완전');
+
+    // gameState에 저장
+    gameState.itemCategory    = parsed.itemCategory || 'normal';
+    gameState.wholesaleOptions = parsed.vendors.map(v => ({
+      name:         v.name,
+      type:         v.type,
+      unitCost:     Math.round(v.unitCost),
+      qualityScore: Math.round(v.qualityScore),
+      description:  v.description || '',
+    }));
+
+    hideAILoading();
+    addLog(`[AI] "${itemName}" 분석 완료 — ${parsed.itemCategory} 카테고리`, 'good');
+    toast(`도매업체 3곳 생성 완료 (${parsed.itemCategory})`, 'good');
+
+    // 검색 후 자동으로 첫 번째 탭 활성화
+    gameState.currentVendorTab = 'cheap';
+    updateUI();
+    setText('search-status', `✅ "${itemName}" — ${{ essential:'필수재', normal:'일반재', luxury:'사치재' }[parsed.itemCategory] || '일반재'} 카테고리`);
+
+  } catch (err) {
+    hideAILoading();
+    console.error('[fetchWholesaleData]', err);
+
+    // API 실패 시 폴백: 아이템명 기반 시드 더미 생성
+    gameState.wholesaleOptions = generateFallbackVendors(itemName);
+    gameState.itemCategory     = guessCategoryFromName(itemName);
+    gameState.currentVendorTab = 'cheap';
+
+    addLog(`[AI] API 오류 — 오프라인 데이터 사용 (${err.message})`, 'warn');
+    toast('API 연결 실패 → 오프라인 데이터로 대체', 'warn');
+    setText('search-status', `⚠️ 오프라인 모드: "${itemName}"`);
+    updateUI();
+  }
+}
+
+// 폴백: 아이템명 시드 기반 결정론적 더미 생성
+function generateFallbackVendors(itemName) {
+  const seed = [...itemName].reduce((a, c) => a + c.charCodeAt(0), 0);
+  const r    = (base, range) => base + (seed % range);
+  return [
+    { name: '대원물산',       type: 'cheap',    unitCost: r(12000, 8000),  qualityScore: r(55, 20),  description: '대량 공급 전문, 빠른 납기' },
+    { name: `${itemName} 표준공업`, type: 'standard', unitCost: r(30000, 15000), qualityScore: r(100, 30), description: '품질과 가격의 균형' },
+    { name: '프리미엄코리아',  type: 'premium',  unitCost: r(70000, 30000), qualityScore: r(160, 25), description: '최고급 소재, 브랜드 차별화' },
+  ];
+}
+function guessCategoryFromName(name) {
+  const luxury    = ['명품','가죽','다이아','황금','수제','수공','고급','비건','오가닉','유기농'];
+  const essential = ['식품','쌀','빵','물','소금','기저귀','칫솔','비누','세제','마스크','의약'];
+  const n = name.toLowerCase();
+  if (luxury.some(k => n.includes(k)))    return 'luxury';
+  if (essential.some(k => n.includes(k))) return 'essential';
+  return 'normal';
+}
+
+// 검색 폼 바인딩
+document.getElementById('search-form')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = document.getElementById('item-search-input');
+  const name  = input?.value.trim();
+  if (!name) { toast('아이템명을 입력해 주세요', 'warn'); return; }
+
+  const btn = document.getElementById('search-btn');
+  if (btn) btn.disabled = true;
+  setText('search-status', '⏳ 탐색 중…');
+
+  await fetchWholesaleData(name);
+
+  if (btn) btn.disabled = false;
+  generateSecretaryReport(); // 비서 브리핑 갱신
+});
+
+// ════════════════════════════════════════════════════════
+//  Step 2-B: 매력도 & 시장 점유율 계산 알고리즘
+// ════════════════════════════════════════════════════════
+// (ECO_WEIGHTS는 Step 1의 getEcoWeight()에서 이미 선언됨 — 재사용)
+
+/**
+ * 매력도 A = ((Q + B) * E) / (P * (1 - R))
+ * @param {number} qualityScore  Q — 품질 점수 (공장 업그레이드 합산)
+ * @param {number} brandValue    B — 브랜드 가치
+ * @param {number} sellPrice     P — 판매 가격
+ * @param {number} resistance    R — 가격 저항성 완화율 (0~0.5)
+ * @param {string} category      itemCategory
+ * @param {string} ecoPhase      'boom'|'stable'|'recession'
+ */
+function calcAttraction(qualityScore, brandValue, sellPrice, resistance, category, ecoPhase) {
+  return calcAttractionWithAwareness(qualityScore, brandValue, sellPrice, resistance, category, ecoPhase, 0);
+}
+/** awarenessBonus: 마케팅 인지도 보너스 (E에 곱해지는 추가 배율 0~0.30) */
+function calcAttractionWithAwareness(qualityScore, brandValue, sellPrice, resistance, category, ecoPhase, awarenessBonus) {
+  if (!sellPrice || sellPrice <= 0) return 0;
+  const E_base = ECO_WEIGHTS[category]?.[ecoPhase] ?? 1.0;
+  const E      = E_base * (1 + (awarenessBonus || 0));   // 인지도 보너스 반영
+  const denominator = sellPrice * (1 - Math.min(resistance, 0.99));
+  if (denominator <= 0) return 0;
+  return ((qualityScore + brandValue) * E) / denominator;
+}
+
+/**
+ * 시장 점유율 계산 — 매력도² / Σ매력도² 방식 (승자 독식)
+ * @param {Array} players  [{attraction: number}]
+ * @returns {Array}        [shareRatio]  (합계 ≈ 1.0)
+ */
+function calcMarketShares(players) {
+  const sqList  = players.map(p => Math.max(0, p.attraction) ** 2);
+  const total   = sqList.reduce((a, v) => a + v, 0);
+  if (total <= 0) return players.map(() => 0);
+  return sqList.map(sq => sq / total);
+}
+
+/**
+ * calculateMarketShare() — 매 턴 호출
+ * gameState를 직접 읽고 marketShare / rivals[].marketShare 갱신
+ * @returns {{ myShare, myAttraction, rivalsInfo }}
+ */
+function calculateMarketShare() {
+  const s        = gameState;
+  const vendor   = s.selectedVendor;
+  if (!vendor) return null;
+
+  // Step 4-2: activeEffects Modifier 반영
+  const evBrand    = getActiveEffectModifier(EV.BRAND);        // 브랜드 가치 보정 합산
+  const evResist   = getActiveEffectModifier(EV.RESIST);       // 가격저항 보정 합산
+  const evQuality  = getActiveEffectModifier(EV.QUALITY);      // 품질 보정 합산
+
+  const factoryDiscount = s.factory.built && s.factory.buildTurnsLeft <= 0 ? 0.6 : 1.0;
+  const upgradeBonus    = (s.factory.built ? s.factory.upgradeLevel * 20 : 0);
+  const myQuality       = vendor.qualityScore + upgradeBonus + evQuality;
+  // 브랜드·저항성에 modifier 합산 (하한 0 보장)
+  const effectiveBrand  = Math.max(0, s.brandValue   + evBrand);
+  const effectiveResist = Math.max(0, s.priceResistance + evResist);
+  // 마케팅 인지도 보너스: 경제 가중치 E에 추가 배율 적용
+  const awarenessBonus = s.marketing?.awarenessBonus || 0;
+  const myAttraction = calcAttractionWithAwareness(
+    myQuality, effectiveBrand, s.sellPrice,
+    effectiveResist, s.itemCategory, s.economy.phase, awarenessBonus
+  );
+
+  // 라이벌 AI — 패턴별 가격 전략
+  const activeRivals = s.rivals.filter(r => !r.bankrupt);
+  activeRivals.forEach(rv => {
+    if (!rv.sellPrice || rv.sellPrice === 0) {
+      // 첫 턴: 패턴별 초기 가격 설정
+      const baseCost = vendor.unitCost * 1.8;
+      rv.sellPrice = Math.round(
+        rv.pattern === 'aggressive' ? baseCost * 0.85 :
+        rv.pattern === 'premium'    ? baseCost * 1.35 :
+        /* copycat */                 s.sellPrice > 0 ? s.sellPrice * 0.95 : baseCost
+      );
+    } else {
+      // 이후 턴: 패턴별 가격 조정
+      rv.sellPrice = Math.round(
+        rv.pattern === 'aggressive' ? rv.sellPrice * (0.97 + Math.random() * 0.03) :   // 점진적 하락
+        rv.pattern === 'premium'    ? rv.sellPrice * (1.00 + Math.random() * 0.02) :   // 소폭 상승
+        /* copycat */                 s.sellPrice * (0.93 + Math.random() * 0.07)       // 플레이어 추적
+      );
+    }
+
+    rv.attraction = calcAttraction(
+      rv.qualityScore, rv.brandValue, rv.sellPrice,
+      rv.priceResistance, s.itemCategory, s.economy.phase
+    );
+  });
+
+  // 전체 플레이어 목록 [나, ...라이벌들]
+  const allPlayers = [
+    { attraction: myAttraction, isMe: true },
+    ...activeRivals.map(rv => ({ attraction: rv.attraction, isMe: false, rv })),
+  ];
+  const shares = calcMarketShares(allPlayers);
+
+  // 상태 갱신
+  s.marketShare = shares[0];
+  activeRivals.forEach((rv, i) => { rv.marketShare = shares[i + 1]; });
+
+  return {
+    myShare:     shares[0],
+    myAttraction,
+    rivalsInfo:  activeRivals.map((rv, i) => ({
+      name:       rv.name,
+      sellPrice:  rv.sellPrice,
+      share:      shares[i + 1],
+      attraction: rv.attraction,
+    })),
+  };
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 2-C: 경제 마르코프 전이
+// ════════════════════════════════════════════════════════
+const ECO_TRANSITIONS = {
+  boom:      { boom: 0.35, stable: 0.50, recession: 0.15 },
+  stable:    { boom: 0.20, stable: 0.55, recession: 0.25 },
+  recession: { boom: 0.10, stable: 0.45, recession: 0.45 },
+};
+function advanceEconomy() {
+  const t = ECO_TRANSITIONS[gameState.economy.phase] || ECO_TRANSITIONS.stable;
+  const r = Math.random();
+  let acc = 0;
+  for (const [phase, prob] of Object.entries(t)) {
+    acc += prob;
+    if (r < acc) { gameState.economy.phase = phase; return; }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 3: 모든 시스템 통합
+// ════════════════════════════════════════════════════════
+
+// ── 상수 ─────────────────────────────────────────────
+const BASE_DEMAND  = 1000;
+const META_KEY     = 'mm_v7_meta';
+const CREDIT_GRADES = {
+  A:{ minNW:500_000_000, limitRatio:2.0, rate:0.048, label:'A등급' },
+  B:{ minNW:100_000_000, limitRatio:1.0, rate:0.060, label:'B등급' },
+  C:{ minNW: 50_000_000, limitRatio:0.5, rate:0.084, label:'C등급' },
+  D:{ minNW:         0,  limitFixed:10_000_000, rate:0.144, label:'D등급' },
+};
+const REALTY_DATA = [
+  { id:'monthly', label:'월세',   deposit:10_000_000,  monthly:1_000_000, assetVal:10_000_000  },
+  { id:'jeonse',  label:'전세',   deposit:100_000_000, monthly:0,         assetVal:100_000_000 },
+  { id:'owned',   label:'자가 소유', deposit:500_000_000, monthly:0,      assetVal:500_000_000 },
+];
+const ECO_RATE_ADJ = { boom:0.02, stable:0, recession:-0.015 };
+
+// ── 메타 프로그레션 ────────────────────────────────────
+const META_DEF = { bankrupts:0, clears:0, capitalBonus:0, boomBonus:0, plays:0 };
+function loadMeta()  { try{ return {...META_DEF,...JSON.parse(localStorage.getItem(META_KEY)||'{}')} }catch{ return {...META_DEF} } }
+function saveMeta(m) { try{ localStorage.setItem(META_KEY, JSON.stringify(m)) }catch{} }
+
+function applyMetaBonuses() {
+  const m = loadMeta();
+  const capB = Math.min(m.capitalBonus, 0.15);
+  if(capB > 0){
+    gameState.capital = Math.round(gameState.capital*(1+capB));
+    addLog('✨ 메타 보너스: 자본 +'+( capB*100).toFixed(1)+'%','good');
+  }
+  gameState._boomBonus = Math.min(m.boomBonus, 0.20);
+}
+
+function recordMetaEnd(type) {
+  const m = loadMeta();
+  m.plays++;
+  if(type === 'bankrupt' || type === 'hostile'){
+    m.bankrupts++;
+    m.capitalBonus = Math.min((m.capitalBonus||0)+0.005, 0.15);
+  }
+  if(type === 'clear'){
+    m.clears++;
+    m.boomBonus = Math.min((m.boomBonus||0)+0.02, 0.20);
+  }
+  saveMeta(m);
+  return m;
+}
+
+// ── 신용등급 ──────────────────────────────────────────
+function getGrade(nw) {
+  if(nw >= 500_000_000) return 'A';
+  if(nw >= 100_000_000) return 'B';
+  if(nw >=  50_000_000) return 'C';
+  return 'D';
+}
+function getEffRate() {
+  // Step 4-2: 이자율 activeEffect 합산
+  const evRate = getActiveEffectModifier ? getActiveEffectModifier(EV.INTEREST) : 0;
+  return Math.max(0.005, gameState.interestRate
+    + (ECO_RATE_ADJ[gameState.economy.phase]||0)
+    + evRate);
+}
+function getMonthlyInterest() {
+  return Math.round(gameState.debt * getEffRate() / 12);
+}
+function getRealtyOpt() {
+  return REALTY_DATA.find(r=>r.id===gameState.realty)||REALTY_DATA[0];
+}
+
+// ── 모달2 열기/닫기 ───────────────────────────────────
+function openModal2(html) {
+  const box = document.getElementById('modal2-box');
+  const ov  = document.getElementById('modal2-ov');
+  if(!box||!ov) return;
+  box.innerHTML = html;
+  ov.classList.remove('hidden');
+  ov.style.display=''; ov.style.pointerEvents='';
+  // 배경 클릭 닫기
+  ov.onclick = e => { if(e.target===ov) closeModal2(); };
+  box.querySelector('.m2-close')?.addEventListener('click', closeModal2);
+}
+function closeModal2() {
+  const ov = document.getElementById('modal2-ov');
+  if(!ov) return;
+  ov.classList.add('hidden');
+  ov.style.display='none'; ov.style.pointerEvents='none';
+}
+
+// ── 금융 모달 (대출/상환) ─────────────────────────────
+function openFinanceModal(initTab='borrow') {
+  let tab = initTab;
+  function render() {
+    const s  = gameState;
+    const nw = s.capital + s.propertyValue - s.debt;
+    const gr = getGrade(nw);
+    const gc = CREDIT_GRADES[gr];
+    const ef = getEffRate();
+    const maxBorrow = gr==='D' ? Math.max(0, gc.limitFixed - s.debt)
+                               : Math.max(0, Math.floor(nw*gc.limitRatio) - s.debt);
+    const maxRepay  = Math.min(s.debt, s.capital);
+    const isBorrow  = tab==='borrow';
+    openModal2(`
+      <div class="modal-head">
+        <span class="modal-title">💳 금융 센터</span>
+        <button class="modal-close m2-close">✕</button>
+      </div>
+      <div style="background:var(--s2);padding:9px 11px;border-radius:8px;margin-bottom:12px;">
+        <div class="m2-row"><span class="m2-lbl">신용등급</span>
+          <span class="m2-val" style="color:var(--${gr==='A'?'green':gr==='B'?'blue':gr==='C'?'yellow':'red'})">${gc.label}</span></div>
+        <div class="m2-row"><span class="m2-lbl">실효 금리 (연)</span>
+          <span class="m2-val">${(ef*100).toFixed(1)}% (기준${(s.interestRate*100).toFixed(1)}% ${ECO_RATE_ADJ[s.economy.phase]>=0?'+':''}${((ECO_RATE_ADJ[s.economy.phase]||0)*100).toFixed(1)}%p)</span></div>
+        <div class="m2-row"><span class="m2-lbl">현재 부채</span><span class="m2-val m2-neg">${fmtW(s.debt)}</span></div>
+        <div class="m2-row"><span class="m2-lbl">월 이자</span><span class="m2-val m2-neg">${fmtW(getMonthlyInterest())}</span></div>
+        <div class="m2-row"><span class="m2-lbl">순자산</span><span class="m2-val ${nw>=0?'m2-pos':'m2-neg'}">${fmtW(nw)}</span></div>
+      </div>
+      <div class="m2-tabs">
+        <button class="m2-tab${isBorrow?' on':''}" id="ft-b">💰 대출</button>
+        <button class="m2-tab${!isBorrow?' on':''}" id="ft-r">🏦 상환</button>
+      </div>
+      <div class="m2-row"><span class="m2-lbl">${isBorrow?'추가 대출 가능':'상환 가능액'}</span>
+        <span class="m2-val m2-pos">${fmtW(isBorrow?maxBorrow:maxRepay)}</span></div>
+      <input type="range" class="m2-range" id="ft-range" min="0"
+        max="${isBorrow?maxBorrow:maxRepay}" step="100000" value="0">
+      <input type="number" class="m2-num" id="ft-amt" placeholder="0"
+        min="0" max="${isBorrow?maxBorrow:maxRepay}" step="100000">
+      <div id="ft-preview" style="font-size:11px;color:var(--dim);margin-bottom:2px;min-height:14px;"></div>
+      <button class="m2-btn ${isBorrow?'m2-btn-blue':'m2-btn-green'}" id="ft-exec">
+        ${isBorrow?'대출 실행':'상환 실행'}
+      </button>`);
+    // 탭 전환
+    document.getElementById('ft-b')?.addEventListener('click',()=>{tab='borrow';render();});
+    document.getElementById('ft-r')?.addEventListener('click',()=>{tab='repay'; render();});
+    // 슬라이더 ↔ 입력
+    const rng=document.getElementById('ft-range'), amt=document.getElementById('ft-amt');
+    const max2=isBorrow?maxBorrow:maxRepay;
+    const sync=v=>{
+      const n=Math.max(0,Math.min(parseInt(v)||0,max2));
+      if(rng)rng.value=n; if(amt)amt.value=n;
+      const prev=document.getElementById('ft-preview');
+      if(prev){
+        prev.textContent=isBorrow
+          ? `대출 후 부채: ${fmtW(s.debt+n)} · 월 이자: ${fmtW(Math.round((s.debt+n)*ef/12))}`
+          : `상환 후 부채: ${fmtW(Math.max(0,s.debt-n))} · 절감: ${fmtW(Math.round(n*ef/12))}/월`;
+      }
+    };
+    rng?.addEventListener('input',e=>sync(e.target.value));
+    amt?.addEventListener('input',e=>sync(e.target.value));
+    document.getElementById('ft-exec')?.addEventListener('click',()=>{
+      const n=parseInt(amt?.value||'0')||0;
+      if(n<=0){toast('금액 입력','warn');return;}
+      if(isBorrow){
+        if(n>maxBorrow){toast('한도 초과','warn');return;}
+        gameState.capital+=n; gameState.debt+=n;
+        addLog('💳 대출 '+fmtW(n),'info');
+      } else {
+        if(n>s.capital){toast('현금 부족','warn');return;}
+        if(n>s.debt){toast('부채 초과','warn');return;}
+        gameState.capital-=n; gameState.debt-=n;
+        addLog('🏦 상환 '+fmtW(n),'good');
+      }
+      closeModal2(); toast((isBorrow?'대출':'상환')+' 완료','good'); updateUI();
+    });
+  }
+  render();
+}
+
+// ── 부동산 모달 ───────────────────────────────────────
+function openRealtyModal() {
+  const s=gameState;
+  const curOpt=getRealtyOpt();
+  const cards=REALTY_DATA.map(opt=>{
+    const isCur=opt.id===s.realty;
+    const cost=opt.deposit - curOpt.deposit;
+    const canUp=!isCur && REALTY_DATA.indexOf(opt)>REALTY_DATA.indexOf(curOpt);
+    const canAfford=s.capital >= cost;
+    return `<div class="realty-card ${isCur?'realty-active':''}">
+      <div class="realty-name">${isCur?'✓ ':''}{${opt.id==='monthly'?'🏠':opt.id==='jeonse'?'🏡':'🏘'}} ${opt.label}${isCur?' (현재)':''}</div>
+      <div class="realty-meta">
+        <span>보증금 ${fmtW(opt.deposit)}</span>
+        <span>월세 ${opt.monthly>0?fmtW(opt.monthly):'없음'}</span>
+        <span>자산가치 ${fmtW(opt.assetVal)}</span>
+      </div>
+      ${canUp?`<button class="m2-btn m2-btn-green" style="font-size:11px;margin-top:6px;"
+        data-rid="${opt.id}" ${!canAfford?'disabled':''}>
+        ${canAfford?opt.label+' 변경 (비용 '+fmtW(cost)+')':'현금 부족 ('+fmtW(cost-s.capital)+' 부족)'}
+      </button>`:''}
+    </div>`;
+  }).join('');
+  openModal2(`
+    <div class="modal-head">
+      <span class="modal-title">🏠 부동산</span>
+      <button class="modal-close m2-close">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:10px;">
+      현재: ${curOpt.label} — 보증금 ${fmtW(curOpt.deposit)} · 월세 ${curOpt.monthly>0?fmtW(curOpt.monthly):'없음'}
+    </div>
+    ${cards}`);
+  document.querySelectorAll('[data-rid]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const opt=REALTY_DATA.find(r=>r.id===btn.dataset.rid);
+      if(!opt)return;
+      const cost=opt.deposit-curOpt.deposit;
+      gameState.capital    -= cost;
+      gameState.realty      = opt.id;
+      gameState.propertyValue=opt.assetVal;
+      addLog('🏠 부동산 변경: '+curOpt.label+' → '+opt.label,'good');
+      closeModal2(); toast(opt.label+' 변경 완료','good'); updateUI();
+    });
+  });
+}
+
+// ── M&A 모달 ─────────────────────────────────────────
+function openMnaModal() {
+  const diff=gameState.difficulty;
+  if(diff!=='hard'&&diff!=='insane'){toast('하드/인세인 전용','warn');return;}
+  const s=gameState;
+  const nw=s.capital+s.propertyValue-s.debt;
+  const cost=Math.max(5_000_000,Math.round(nw*0.15));
+  openModal2(`
+    <div class="modal-head">
+      <span class="modal-title">🎰 M&A 인수합병</span>
+      <button class="modal-close m2-close">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:12px;">
+      비용 예상: <strong style="color:var(--red)">${fmtW(cost)}</strong> · 순자산의 15%
+    </div>
+    <div class="mna-cards">
+      <div class="mna-card mna-win">
+        <div class="mna-icon">🎉</div>
+        <div class="mna-title" style="color:var(--green)">성공</div>
+        <div class="mna-desc">점유율 +8%<br>브랜드 +10<br>라이벌 퇴출</div>
+        <div style="font-size:10px;margin-top:5px;color:var(--green);font-weight:700">40%</div>
+      </div>
+      <div class="mna-card mna-mid">
+        <div class="mna-icon">😐</div>
+        <div class="mna-title" style="color:var(--yellow)">유지</div>
+        <div class="mna-desc">점유율 +3%<br>운영비 +20%</div>
+        <div style="font-size:10px;margin-top:5px;color:var(--yellow);font-weight:700">35%</div>
+      </div>
+      <div class="mna-card mna-loss">
+        <div class="mna-icon">💀</div>
+        <div class="mna-title" style="color:var(--red)">실패</div>
+        <div class="mna-desc">부채 +3억<br>운영비 +50%</div>
+        <div style="font-size:10px;margin-top:5px;color:var(--red);font-weight:700">25%</div>
+      </div>
+    </div>
+    <button class="m2-btn m2-btn-yellow" id="mna-exec" ${s.capital<cost?'disabled':''}>
+      ${s.capital>=cost?'🎰 M&A 실행 — '+fmtW(cost):'현금 부족 ('+fmtW(cost-s.capital)+' 부족)'}
+    </button>`);
+  document.getElementById('mna-exec')?.addEventListener('click',()=>{
+    gameState.capital-=cost; gameState.mna.count++;
+    const r=Math.random();
+    let outcome, msg;
+    if(r<0.40){
+      outcome='win';
+      gameState.marketShare=Math.min(1,gameState.marketShare+0.08);
+      gameState.brandValue+=10;
+      const tgt=gameState.rivals.find(rv=>!rv.bankrupt);
+      if(tgt){tgt.bankrupt=true;tgt.bankruptTurn=gameState.turn;}
+      msg='🎉 M&A 성공! 점유율+8%, 브랜드+10';
+    } else if(r<0.75){
+      outcome='mid';
+      gameState.marketShare=Math.min(1,gameState.marketShare+0.03);
+      gameState.mna.opCostMultiplier=Math.min(3,gameState.mna.opCostMultiplier*1.20);
+      msg='😐 M&A 유지: 점유율+3%, 운영비+20%';
+    } else {
+      outcome='loss';
+      gameState.debt+=300_000_000;
+      gameState.mna.opCostMultiplier=Math.min(3,gameState.mna.opCostMultiplier*1.50);
+      msg='💀 M&A 실패! 부채+3억, 운영비+50%';
+    }
+    addLog(msg, outcome==='win'?'good':outcome==='mid'?'warn':'bad');
+    closeModal2(); toast(msg,outcome==='win'?'good':outcome==='mid'?'warn':'bad');
+    checkBankruptcy(); updateUI();
+  });
+}
+
+// ── 업적(메타) 모달 ───────────────────────────────────
+function openMetaModal() {
+  const m=loadMeta();
+  openModal2(`
+    <div class="modal-head">
+      <span class="modal-title">✨ 메타 프로그레션</span>
+      <button class="modal-close m2-close">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:12px;">
+      총 플레이 ${m.plays}회 · 파산 ${m.bankrupts}회 · 클리어 ${m.clears}회
+    </div>
+    <div class="perk-row">
+      <span class="perk-icon">💰</span>
+      <div class="perk-body">
+        <div class="perk-name">자본 보너스</div>
+        <div class="perk-desc">파산 1회당 +0.5% (최대 +15%)</div>
+        <div class="perk-bar"><div class="perk-fill" style="width:${Math.min((m.capitalBonus||0)/0.15*100,100).toFixed(0)}%;background:var(--green)"></div></div>
+      </div>
+      <div class="perk-val" style="color:var(--green)">+${((m.capitalBonus||0)*100).toFixed(1)}%</div>
+    </div>
+    <div class="perk-row">
+      <span class="perk-icon">📈</span>
+      <div class="perk-body">
+        <div class="perk-name">호황기 확률 보너스</div>
+        <div class="perk-desc">클리어 1회당 +2% (최대 +20%)</div>
+        <div class="perk-bar"><div class="perk-fill" style="width:${Math.min((m.boomBonus||0)/0.20*100,100).toFixed(0)}%;background:var(--blue)"></div></div>
+      </div>
+      <div class="perk-val" style="color:var(--blue)">+${((m.boomBonus||0)*100).toFixed(1)}%</div>
+    </div>
+    <div style="margin-top:8px;padding:9px 11px;background:var(--s2);border-radius:7px;font-size:11px;color:var(--dim);">
+      ℹ️ 보너스는 다음 게임 시작 시 자동 적용됩니다.
+    </div>
+    <button id="meta-reset-btn" class="m2-btn m2-btn-red" style="font-size:11px;margin-top:8px;">초기화</button>`);
+  document.getElementById('meta-reset-btn')?.addEventListener('click',()=>{
+    if(!confirm('메타 데이터를 초기화하시겠습니까?'))return;
+    saveMeta({...META_DEF});
+    toast('초기화 완료','info'); openMetaModal();
+  });
+}
+
+// ── HR 망각 곡선 ──────────────────────────────────────
+function processHRForgetting() {
+  const hr  = gameState.hr;
+  const st  = gameState.salesTraining;
+  const pt  = gameState.prodTraining;
+  // 영업 또는 생산 교육이 한 번이라도 있어야 망각 적용
+  const totalCount = (st?.count||0) + (pt?.count||0);
+  if (!totalCount) return;
+  const gap = gameState.turn - (hr.lastTrainTurn || 0);
+  if (gap >= 3) {
+    const d = 0.02;
+    const pR = gameState.priceResistance;
+    const pB = gameState.brandValue;
+    gameState.priceResistance = Math.max(0, pR - d);
+    gameState.brandValue      = Math.max(0, pB - Math.ceil(pB * d));
+    if (pR !== gameState.priceResistance || pB !== gameState.brandValue)
+      addLog('📉 망각 곡선: 저항성/브랜드 감소', 'warn');
+  }
+}
+
+// ── 라이벌 파산 & 리스폰 ──────────────────────────────
+function processRivalLifecycle() {
+  const s=gameState;
+  s.rivals.forEach((rv,i)=>{
+    if(!rv.bankrupt)return;
+    if(!rv.bankruptTurn)return;
+    const delay=2+Math.floor(Math.random()*2);
+    if(s.turn - rv.bankruptTurn >= delay){
+      s.rivals[i]={
+        name:rv.name,
+        capital:15_000_000+Math.floor(Math.random()*15_000_000),
+        brandValue:Math.floor(Math.random()*15),
+        priceResistance:0.02,
+        marketShare:0,
+        pattern:['aggressive','premium','copycat'][Math.floor(Math.random()*3)],
+        sellPrice:0,
+        qualityScore:70+Math.floor(Math.random()*70),
+        bankrupt:false, bankruptTurn:0, attraction:0,
+      };
+      addLog('⚡ '+rv.name+' 신규 경쟁사로 재진입!','warn');
+    }
+  });
+}
+
+// ── 파산 체크 ─────────────────────────────────────────
+function checkBankruptcy() {
+  const s  = gameState;
+  if (s.gameStatus !== 'playing') return false;
+
+  // 조건 1: 4개월 연속 적자 + 현금 ≤ 0 + 부채 > 0
+  const last4       = s.profitHistory.slice(-4);
+  const consecutive = last4.length >= 4 && last4.every(p => p < 0)
+                    && s.capital <= 0 && s.debt > 0;
+
+  // 조건 2 (B-05): 순자산이 -5천만 미만 — 즉시 파산
+  const nw          = s.capital + s.propertyValue - s.debt;
+  const insolvent   = nw < -50_000_000;
+
+  if (consecutive || insolvent) {
+    s.gameStatus = 'bankrupt';
+    showGameOver('bankrupt');
+    return true;
+  }
+  return false;
+}
+
+// ── 게임 오버 / 클리어 ────────────────────────────────
+function showGameOver(type) {
+  const s=gameState;
+  const nw=s.capital+s.propertyValue-s.debt;
+  const meta=recordMetaEnd(type);
+  const cfgs={
+    bankrupt:{ bg:'radial-gradient(ellipse,#2d0a0a,#0D1117)', title:'💀 파산', sub:'자본이 바닥났습니다.', btnBg:'var(--red)' },
+    clear:   { bg:'radial-gradient(ellipse,#0a1a2d,#0D1117)', title:'🏆 클리어!', sub:'120개월을 버텨냈습니다!', btnBg:'var(--blue)' },
+    hostile: { bg:'radial-gradient(ellipse,#1a1a0a,#0D1117)', title:'🦅 경영권 탈취', sub:'사모펀드에 인수됐습니다.', btnBg:'var(--yellow)' },
+  };
+  const cfg=cfgs[type]||cfgs.bankrupt;
+  const ov=document.getElementById('go-ov');
+  if(!ov)return;
+  ov.style.background=cfg.bg;
+  ov.classList.remove('hidden'); ov.style.display=''; ov.style.pointerEvents='';
+  ov.innerHTML=`
+    <div class="go-title">${cfg.title}</div>
+    <div class="go-sub">${cfg.sub}</div>
+    <div class="go-stats">
+      <div class="go-stat"><div class="go-stat-lbl">최종 현금</div>
+        <div class="go-stat-val" style="color:${s.capital>=0?'var(--green)':'var(--red)'}">${fmtW(s.capital)}</div></div>
+      <div class="go-stat"><div class="go-stat-lbl">순자산</div>
+        <div class="go-stat-val">${fmtW(nw)}</div></div>
+      <div class="go-stat"><div class="go-stat-lbl">경영 기간</div>
+        <div class="go-stat-val">${s.turn}개월</div></div>
+      <div class="go-stat"><div class="go-stat-lbl">브랜드</div>
+        <div class="go-stat-val">${s.brandValue}pt</div></div>
+      <div class="go-stat"><div class="go-stat-lbl">누적 이익</div>
+        <div class="go-stat-val" style="color:${s.cumulativeProfit>=0?'var(--green)':'var(--red)'}">${sign(s.cumulativeProfit)}</div></div>
+    </div>
+    <div class="go-meta">
+      <div class="go-meta-title">✨ 메타 프로그레션 업데이트</div>
+      ${type!=='clear'?`<div class="go-meta-row"><span class="go-meta-lbl">자본 보너스 누적</span><span class="go-meta-new">+${((meta.capitalBonus||0)*100).toFixed(1)}%</span></div>`:''}
+      ${type==='clear'?`<div class="go-meta-row"><span class="go-meta-lbl">호황 확률 보너스</span><span class="go-meta-new">+${((meta.boomBonus||0)*100).toFixed(1)}%</span></div>`:''}
+      <div class="go-meta-row"><span class="go-meta-lbl">총 플레이</span><span class="go-meta-new">${meta.plays}회</span></div>
+    </div>
+    <button class="go-restart" style="background:${cfg.btnBg};color:#0D1117" onclick="location.reload()">🔄 다시 시작</button>`;
+}
+
+// ── 스토리 팝업 (타이핑 애니메이션) ──────────────────
+const STORIES={
+  1:  { act:'프롤로그', title:'작은 가게, 큰 꿈',
+    text:'당신은 창고 한 켠에서 첫 주문서를 펼쳤다.\n시장은 냉혹하다. 하지만 기회는 항상 있다.\n120개월 뒤, 캐피로그라는 이름이 시장을 지배할 것이다.' },
+  37: { act:'2막 — 성장의 고통', title:'라이벌이 나타났다',
+    text:'조용히 성장하던 당신 앞에 강력한 경쟁자가 등장했다.\n가격을 내리고, 품질을 올리고, 브랜드를 쌓아라.\n시장은 멈추는 자를 뒤처지게 만든다.' },
+  81: { act:'3막 — 거대한 파도', title:'블랙 스완의 경고',
+    text:'지평선 너머에서 뭔가가 다가오고 있다.\n예측 불가능한 사건이 시장을 뒤흔들 것이다.\n자본을 쌓고, 부채를 줄이고, 브랜드를 강화하라.' },
+  111:{ act:'피날레', title:'마지막 10턴',
+    text:'이제 9턴이 남았다.\n당신이 쌓아온 모든 것이 이 마지막 순간에 시험받는다.\n끝까지 버텨라.' },
+};
+function showStory(turn) {
+  const st=STORIES[turn]; if(!st)return;
+  const ov=document.getElementById('story-ov');
+  if(!ov)return;
+  ov.classList.remove('hidden'); ov.style.display=''; ov.style.pointerEvents='';
+  document.getElementById('story-act').textContent  = st.act;
+  document.getElementById('story-title').textContent = st.title;
+  const body=document.getElementById('story-body');
+  const cont=document.getElementById('story-cont');
+  if(!body||!cont)return;
+  body.innerHTML=''; cont.style.display='none';
+  let i=0;
+  const cursor=document.createElement('span'); cursor.className='story-cursor';
+  body.appendChild(cursor);
+  const iv=setInterval(()=>{
+    if(i<st.text.length){ cursor.before(st.text[i++]); }
+    else{
+      clearInterval(iv); cursor.remove();
+      cont.style.display='inline-block';
+    }
+  }, 28);
+  cont.onclick=()=>{
+    clearInterval(iv);
+    ov.classList.add('hidden'); ov.style.display='none'; ov.style.pointerEvents='none';
+  };
+}
+
+// ── 블랙 스완 ─────────────────────────────────────────
+const BLACK_SWANS=[
+  { id:'dumping',
+    title:'🦕 글로벌 덤핑 공세', sub:'거대 플랫폼이 원가 이하 판매를 시작했습니다!',
+    bg:'radial-gradient(ellipse,#1a0a2d,#0D1117)',
+    effs:[{cls:'se-purple',t:'라이벌 판매가 → 원가 ×0.5'},{cls:'se-red',t:'시장 수요 -30%'},{cls:'se-yellow',t:'브랜드가 핵심'}],
+    btnColor:'var(--purple)',
+    onStart(s){ s._bsType='dumping'; s._bsDemandMul=0.7; },
+    onEnd(s)  { s._bsType=null; s._bsDemandMul=null; delete s._bsDumping; },
+  },
+  { id:'pe',
+    title:'🦅 사모펀드 적대적 인수', sub:'순자산 5억 미만이면 즉시 경영권 탈취!',
+    bg:'radial-gradient(ellipse,#2d1a0a,#0D1117)',
+    effs:[{cls:'se-red',t:'매 턴 순자산 < 5억 → 즉시 인수'},{cls:'se-yellow',t:'10턴 지속'},{cls:'se-purple',t:'자산 확보로 방어'}],
+    btnColor:'var(--yellow)',
+    onStart(s){ s._bsType='pe'; },
+    onEnd(s)  { s._bsType=null; },
+  },
+  { id:'storm',
+    title:'🌊 금리 30% 퍼펙트 스톰', sub:'초긴급 금리 인상 + 경기 침체 동시 발생!',
+    bg:'radial-gradient(ellipse,#0a1a1a,#0D1117)',
+    effs:[{cls:'se-red',t:'기준 금리 +30%p (10턴)'},{cls:'se-red',t:'불황기 강제 고정'},{cls:'se-yellow',t:'시장 수요 -40%'}],
+    btnColor:'var(--red)',
+    onStart(s){ s._bsType='storm'; s.interestRate+=0.30; s.economy.phase='recession'; s._bsDemandMul=0.6; addLog('🌊 퍼펙트 스톰: 금리+30%p','bad'); },
+    onEnd(s)  { s.interestRate-=0.30; s._bsType=null; s._bsDemandMul=null; },
+  },
+];
+let _bsActive=null, _bsTurnsLeft=0;
+
+function checkBlackSwan() {
+  const s=gameState;
+  if(s.turn<80||_bsActive||s.gameStatus!=='playing')return;
+  const prob=0.01+(s.turn-80)*0.001; // 80턴 1% → 120턴 5%
+  if(Math.random()<prob) triggerBlackSwan();
+}
+function triggerBlackSwan() {
+  const sw=BLACK_SWANS[Math.floor(Math.random()*BLACK_SWANS.length)];
+  _bsActive=sw; _bsTurnsLeft=10;
+  sw.onStart(gameState);
+  const ov=document.getElementById('swan-ov');
+  if(!ov)return;
+  ov.style.background=sw.bg;
+  ov.classList.remove('hidden'); ov.style.display=''; ov.style.pointerEvents='';
+  ov.innerHTML=`
+    <div class="swan-title">${sw.title}</div>
+    <div class="swan-sub">${sw.sub}</div>
+    <div class="swan-effects">${sw.effs.map(e=>`<div class="swan-eff ${e.cls}">${e.t}</div>`).join('')}</div>
+    <button class="swan-ok" style="background:${sw.btnColor};color:#0D1117;" id="swan-ok-btn">확인 — 버텨라!</button>`;
+  document.getElementById('swan-ok-btn')?.addEventListener('click',()=>{
+    ov.classList.add('hidden'); ov.style.display='none'; ov.style.pointerEvents='none';
+    updateUI();
+  });
+  addLog('⚠️ 블랙 스완: '+sw.title,'bad');
+}
+function tickBlackSwan() {
+  if(!_bsActive)return;
+  // PE 체크
+  if(_bsActive.id==='pe'){
+    const nw=gameState.capital+gameState.propertyValue-gameState.debt;
+    if(nw<500_000_000){ gameState.gameStatus='hostile'; showGameOver('hostile'); return; }
+  }
+  _bsTurnsLeft--;
+  if(_bsTurnsLeft<=0){
+    _bsActive.onEnd(gameState);
+    addLog('✅ 블랙 스완 종료: '+_bsActive.title,'good');
+    _bsActive=null; _bsTurnsLeft=0;
+    updateUI();
+  }
+}
+
+// ── 숫자 롤링 애니메이션 ─────────────────────────────
+function animateNum(el, target, dur=600) {
+  if(!el)return;
+  const abs=Math.abs(target), isPos=target>=0;
+  const start=Date.now();
+  const tick=()=>{
+    const t=Math.min((Date.now()-start)/dur,1);
+    const ease=1-Math.pow(1-t,3);
+    el.textContent=(isPos?'+':'-')+Math.round(abs*ease).toLocaleString('ko-KR')+'원';
+    el.style.color=isPos?'var(--green)':'var(--red)';
+    el.classList.add('num-roll');
+    if(t<1)requestAnimationFrame(tick);
+    else{el.textContent=sign(target);el.style.color=isPos?'var(--green)':'var(--red)';}
+  };
+  requestAnimationFrame(tick);
+}
+
+// ── 독점 골드 테마 ────────────────────────────────────
+function checkMonopolyTheme() {
+  const layout=document.getElementById('main-layout');
+  if(!layout)return;
+  if(gameState.marketShare>=0.80){
+    if(!layout.classList.contains('gold-panel')){
+      layout.classList.add('gold-panel');
+      gameState.priceResistance=Math.min(0.5,gameState.priceResistance*1.5); // 저항성 페널티 반감(상한 상승)
+      addLog('🏆 독점 달성! 골드 테마 활성화, 저항성 페널티 반감','good');
+      toast('🏆 독점! 점유율 80% 돌파','good');
+    }
+  } else {
+    layout.classList.remove('gold-panel');
+  }
+}
+
+// ── 담합 토글 ─────────────────────────────────────────
+function toggleCartel() {
+  const d=gameState.difficulty;
+  if(d!=='hard'&&d!=='insane'){toast('하드/인세인 전용','warn');return;}
+  gameState.cartel=gameState.cartel||{active:false};
+  gameState.cartel.active=!gameState.cartel.active;
+  const btn=document.getElementById('cartel-btn');
+  if(btn){
+    btn.classList.toggle('active',gameState.cartel.active);
+    btn.textContent=gameState.cartel.active?'🤝 담합 활성 (클릭하여 해제)':'🤝 담합 활성화 (×1.5 수익 / 적발 15%)';
+  }
+  addLog(gameState.cartel.active?'🤝 담합 활성화':'담합 해제',gameState.cartel.active?'warn':'info');
+  toast(gameState.cartel.active?'담합 활성화!':'담합 해제','warn');
+}
+document.getElementById('cartel-btn')?.addEventListener('click', toggleCartel);
+
+// ── 경제 전이 (메타 호황 보너스 반영) ────────────────
+function advanceEconomyV3() {
+  if(_bsActive?.id==='storm'){gameState.economy.phase='recession';return;}
+  const bb=gameState._boomBonus||0;
+  const phase=gameState.economy.phase||'stable';
+  const T={
+    boom:      {boom:0.35+bb,      stable:0.50,              recession:Math.max(0.05,0.15-bb)},
+    stable:    {boom:0.20+bb,      stable:Math.max(0.3,0.55-bb),recession:0.25},
+    recession: {boom:0.10+bb,      stable:0.45,              recession:Math.max(0.05,0.45-bb)},
+  }[phase]||{boom:0.2,stable:0.55,recession:0.25};
+  const r=Math.random(); let acc=0;
+  for(const[p,v]of Object.entries(T)){acc+=v;if(r<acc){gameState.economy.phase=p;return;}}
+}
+
+// ── Step 3 통합 턴 정산 ───────────────────────────────
+
+// 기존 리스너 제거 후 재등록
+(function(){
+  const old=document.getElementById('next-btn');
+  if(!old)return;
+  const clone=old.cloneNode(true);
+  old.parentNode.replaceChild(clone,old);
+  clone.addEventListener('click', runTurn);
+})();
+
+async function runTurn() {
+  const s=gameState;
+  if(!s.selectedVendor||s.sellPrice<=0)return;
+  if(s.gameStatus!=='playing')return;
+
+  const btn=document.getElementById('next-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ 정산 중…';}
+
+  // Step 4-2 ①-pre: activeEffects 틱 & 이벤트 추첨
+  tickActiveEffects(s);
+  const monthlyEvent = rollMonthlyEvent(s);
+  // 이벤트 발동 시 뉴스 속보 표시 (비동기 대기 없이 큐 처리)
+  if (monthlyEvent) {
+    showNewsBreaking(monthlyEvent);
+    await new Promise(res => {
+      const chk = setInterval(() => {
+        const ov = document.getElementById('news-ov');
+        if (ov && ov.classList.contains('hidden')) { clearInterval(chk); res(); }
+      }, 150);
+    });
+  }
+
+  // ① 스토리 팝업
+  if([1,37,81,111].includes(s.turn)&&!s._storyShown?.[s.turn]){
+    s._storyShown=s._storyShown||{};
+    s._storyShown[s.turn]=true;
+    showStory(s.turn);
+    await new Promise(res=>{
+      const chk=setInterval(()=>{
+        const ov=document.getElementById('story-ov');
+        if(ov&&ov.classList.contains('hidden')){clearInterval(chk);res();}
+      },150);
+    });
+  }
+
+  // ② 경제 전이
+  advanceEconomyV3();
+
+  // ③ 블랙스완 체크 & 틱
+  checkBlackSwan();
+  if(_bsActive)tickBlackSwan();
+  if(s.gameStatus!=='playing'){if(btn){btn.disabled=true;}return;}
+
+  // ④ 덤핑 라이벌 가격 강제
+  if(_bsActive?.id==='dumping'){
+    s.rivals.forEach(rv=>{if(!rv.bankrupt)rv.sellPrice=Math.round((s.selectedVendor.unitCost||30000)*0.5);});
+  }
+
+  // ⑤ 점유율 계산
+  const shareResult=calculateMarketShare();
+  if(!shareResult){if(btn){btn.disabled=false;btn.innerHTML=`▶ 다음 달로 (${s.turn}개월 차)`;}return;}
+
+  // ⑥ 수요 (Step 4-2: activeEffects / B-01: 결재카드 _docDemandMul 반영)
+  const ecoMul=ECO_WEIGHTS[s.itemCategory]?.[s.economy.phase]??1.0;
+  const bsMul=s._bsDemandMul??1.0;
+  const evDemandMul = 1 + getActiveEffectModifier(EV.MARKET_MUL);
+  const docMul      = 1 + (s._docDemandMul || 0);   // 결재 카드 수요 효과
+  s._docDemandMul   = 0;                              // 1턴 소모 후 리셋
+  const randomFactor = 0.9 + Math.random() * 0.2;    // 월별 수요 변동 (×0.9~1.1)
+  const demand=Math.round(BASE_DEMAND*ecoMul*bsMul*Math.max(0.1,evDemandMul)*Math.max(0.1,docMul)*randomFactor);
+  let sold=(s._shutdownLeft>0)?0:Math.round(demand*shareResult.myShare);
+  if(s._shutdownLeft>0)s._shutdownLeft--;
+
+  // ⑦ 매출/원가
+  const factoryActive=s.factory.built&&s.factory.buildTurnsLeft<=0;
+  const netCost=Math.round(s.selectedVendor.unitCost*(factoryActive?0.6:1.0));
+  const revenue=sold*s.sellPrice;
+  const cogs=sold*netCost;
+  let gross=revenue-cogs;
+
+  // ⑧ 담합
+  let cartelFine=0;
+  if(s.cartel?.active){
+    gross=Math.round(gross*1.5);
+    if(Math.random()<0.15){
+      cartelFine=50_000_000;
+      s.capital-=cartelFine;
+      s.cartel.active=false;
+      const cBtn=document.getElementById('cartel-btn');
+      if(cBtn){cBtn.classList.remove('active');cBtn.textContent='🤝 담합 활성화 (×1.5 수익 / 적발 15%)';}
+      addLog('🚨 공정위 적발! 과징금 5천만','bad');
+      toast('담합 적발! 과징금 5천만 원','bad');
+    }
+  }
+
+  // ⑨ 고정비 (Step 4-2: evCostMul로 운영비 보정)
+  const effRate=getEffRate();                          // 이미 EV.INTEREST 포함
+  const monthlyInt=getMonthlyInterest();
+  const realtyRent=getRealtyOpt().monthly;
+  const safetyCost=factoryActive&&s.factory.safetyOn?5_000_000:0;
+  const evCostMul = 1 + getActiveEffectModifier(EV.COST_MUL);   // e.g. -0.1 → ×0.9
+  const totalFixed=Math.round(
+    (monthlyInt+s.monthlyFixedCost+realtyRent+safetyCost)
+    * s.mna.opCostMultiplier
+    * Math.max(0.1, evCostMul)
+  );
+
+  // ⑩ 산재
+  let accPenalty=0;
+  if(factoryActive&&!s.factory.safetyOn){
+    s.factory.accidentRisk=Math.min(1,(s.factory.accidentRisk||0)+0.05);
+    if(Math.random()<s.factory.accidentRisk){
+      accPenalty=100_000_000; s._shutdownLeft=2; s.factory.accidentRisk=0;
+      addLog('💥 산업재해! -1억, 2턴 영업정지','bad');
+      toast('산업재해 발생!','bad');
+    }
+  }
+
+  // ⑪ 순이익
+  const netProfit=gross-totalFixed-accPenalty;
+
+  // ⑫ 상태 갱신
+  s.capital+=netProfit;
+  s.cumulativeProfit+=netProfit;
+  s.profitHistory.push(netProfit);
+  if(s.profitHistory.length>12)s.profitHistory.shift();
+
+  // ⑬ 공장 타이머
+  if(s.factory.built&&s.factory.buildTurnsLeft>0){
+    s.factory.buildTurnsLeft--;
+    if(s.factory.buildTurnsLeft===0)addLog('🏭 공장 완공! 원가 -40%','good');
+  }
+
+  // ⑭ HR 망각
+  processHRForgetting();
+
+  // ⑮ 라이벌 자본
+  s.rivals.forEach(rv=>{
+    if(rv.bankrupt)return;
+    const rvSold=Math.round(demand*rv.marketShare);
+    rv.capital=(rv.capital||20_000_000)+rvSold*(rv.sellPrice-(s.selectedVendor?.unitCost||30000))-500_000;
+    if(rv.capital<=0&&!rv.bankrupt){rv.bankrupt=true;rv.bankruptTurn=s.turn;addLog('💀 '+rv.name+' 파산!','good');}
+  });
+  processRivalLifecycle();
+
+  // ⑯ 독점 체크
+  checkMonopolyTheme();
+
+  // ⑰ 파산 체크
+  if(checkBankruptcy())return;
+
+  // ⑱ 클리어
+  if(s.turn>=s.maxTurns){s.gameStatus='clear';showGameOver('clear');return;}
+
+  // ⑲ 결과 저장 (Step 4-2: monthlyEvent 포함)
+  s.lastTurnResult={sold,demand,revenue,cogs,gross,totalFixed,netProfit,
+    shareResult,ecoMul,monthlyInt,realtyRent,safetyCost,cartelFine,accPenalty,
+    monthlyEvent, evDemandMul, evCostMul,
+    docEventResult: s._lastDocResult || null};
+  s._lastDocResult = null;
+
+  // ⑳ 정산 모달
+  fillReportV3(s.lastTurnResult);
+  openModal('report-modal');
+  generateSecretaryReport(s.lastTurnResult);
+
+  // ㉑ 대시보드
+  animateNum(document.getElementById('dash-profit'), netProfit);
+  setText('dash-demand',fmt(demand)+'개');
+  setText('dash-sold',  fmt(sold)+'개');
+  setText('dash-accum', sign(s.cumulativeProfit), s.cumulativeProfit>=0?'var(--green)':'var(--red)');
+
+  addLog('T'+s.turn+' | '+sign(netProfit)+' | 점유율 '+(shareResult.myShare*100).toFixed(1)+'% | 판매 '+fmt(sold)+'개', netProfit>=0?'good':'bad');
+
+  // ㉒ 턴/HR 리셋
+  s.turn++;
+  // 새 3-트랙 HR 플래그 초기화
+  if (s.salesTraining) s.salesTraining.usedThisTurn = false;
+  if (s.prodTraining)  s.prodTraining.usedThisTurn  = false;
+  s.mktThisTurn = false;
+  s.hr.trainingThisTurn = 0;  // 하위 호환
+  updateUI();
+
+  if(btn){btn.disabled=false;btn.innerHTML=`▶ 다음 달로 (${s.turn}개월 차)`;}
+}
+
+function fillReportV3(r){
+  const{sold,demand,revenue,cogs,gross,totalFixed,netProfit,shareResult,
+        monthlyInt,realtyRent,safetyCost,cartelFine,accPenalty,docEventResult}=r;
+  setText('rp-sold',`${fmt(sold)}개 / 수요 ${fmt(demand)}개`);
+  setText('rp-revenue',fmtW(revenue));
+  setText('rp-cogs',   fmtW(cogs));
+  // B-09 I-07: 고정비 서브행 분리
+  setText('rp-fixed', fmtW(totalFixed));
+  const fixedSub=document.getElementById('rp-fixed-sub');
+  if(fixedSub) fixedSub.textContent=`이자 ${fmtW(monthlyInt)} · 임대 ${fmtW(realtyRent)} · 안전비 ${fmtW(safetyCost)}`;
+  const profEl=document.getElementById('rp-profit');
+  if(profEl)animateNum(profEl,netProfit);
+  setText('rp-share',pct(shareResult.myShare));
+  const badge=document.getElementById('rp-profit-badge');
+  if(badge)badge.className='profit-badge '+(netProfit>=0?'profit-pos':'profit-neg');
+  const sec=document.getElementById('rp-rivals-section');
+  if(sec){
+    let extra='';
+    // B-09: 결재 이벤트 결과 표시
+    if(docEventResult) extra+=`<div class="report-row"><span class="report-lbl" style="color:var(--blue)">📋 결재</span><span class="report-val" style="color:var(--dim);font-size:10px;">${docEventResult.slice(0,30)}</span></div>`;
+    if(cartelFine>0)extra+=`<div class="report-row"><span class="report-lbl" style="color:var(--red)">🚨 담합 과징금</span><span class="report-val" style="color:var(--red)">-${fmtW(cartelFine)}</span></div>`;
+    if(accPenalty>0)extra+=`<div class="report-row"><span class="report-lbl" style="color:var(--red)">💥 산재 벌금</span><span class="report-val" style="color:var(--red)">-${fmtW(accPenalty)}</span></div>`;
+    sec.innerHTML=extra+(shareResult.rivalsInfo||[]).map(rv=>
+      `<div class="report-row"><span class="report-lbl">${rv.name} (${fmtW(rv.sellPrice)})</span>
+       <span class="report-val">${pct(rv.share)}</span></div>`).join('');
+  }
+}
+
+// ── 버튼 재바인딩 ─────────────────────────────────────
+document.getElementById('btn-realty')?.addEventListener('click', openRealtyModal);
+document.getElementById('btn-loan')  ?.addEventListener('click', ()=>openFinanceModal('borrow'));
+document.getElementById('btn-mna')   ?.addEventListener('click', openMnaModal);
+document.getElementById('btn-meta')  ?.addEventListener('click', openMetaModal);
+
+// ── updateUI 확장 (Step 3 추가 항목) — 원본 함수에 통합됨
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+document.querySelectorAll('.diff-card').forEach(card=>{
+  card.addEventListener('click',()=>{
+    // applyDifficulty 이미 실행됨 — 추가 메타 보너스
+    setTimeout(()=>{ applyMetaBonuses(); updateUI(); }, 50);
+  });
+});
+
+
+// ════════════════════════════════════════════════════════
+//  Step 2-E: generateSecretaryReport() — 난이도별 AI 비서
+// ════════════════════════════════════════════════════════
+const ADVISOR_AVATAR = { easy: '🤖', normal: '📋', hard: '📡', insane: '💀' };
+const ADVISOR_LABEL  = {
+  easy:   'AI 비서 (Easy)',
+  normal: '정보 담당관 (Normal)',
+  hard:   '데이터 분석기 (Hard)',
+  insane: '노이즈 오라클 (Insane)',
+};
+
+function generateSecretaryReport(lastResult) {
+  const s    = gameState;
+  const diff = s.difficulty;
+  let lines  = [];
+
+  if (!s.selectedVendor) {
+    lines.push('⚠️ 아직 도매업체 계약이 없습니다. 하단 검색창에서 아이템을 탐색해 주세요.');
+  } else {
+    const cat   = s.itemCategory;
+    const phase = s.economy.phase;
+    const catKR = { essential: '필수재', normal: '일반재', luxury: '사치재' }[cat] || '일반재';
+    const ecoKR = { boom: '호황기 🚀', stable: '평시 ➡️', recession: '불황기 📉' }[phase] || '평시';
+    const ecoW  = ECO_WEIGHTS[cat]?.[phase] ?? 1.0;
+
+    if (diff === 'easy') {
+      // Easy: 직접 경고 + 라이벌 예상 행동
+      const rv0 = s.rivals[0];
+      if (rv0) {
+        const nextPrice = Math.round(rv0.sellPrice * (rv0.pattern === 'aggressive' ? 0.93 : rv0.pattern === 'premium' ? 1.02 : 0.97));
+        const actionMap = { aggressive: '가격 인하 예정', premium: '품질 강화 집중', copycat: '우리 가격 추적' };
+        lines.push(`📊 ${rv0.name}: 다음 달 예상가 ${fmtW(nextPrice)} / 전략: ${actionMap[rv0.pattern]}`);
+      }
+      lines.push(`💡 현재 시장: ${ecoKR} (${catKR} 수요 배율 ×${ecoW.toFixed(1)})`);
+      if (lastResult) {
+        const shareStr = (lastResult.shareResult.myShare * 100).toFixed(1);
+        if (parseFloat(shareStr) < 20) lines.push(`⚠️ 점유율 ${shareStr}% — 가격 전략 조정이 필요합니다!`);
+      }
+    } else if (diff === 'normal') {
+      // Normal: 라이벌 현재 팩트만
+      s.rivals.filter(r => !r.bankrupt).forEach(rv => {
+        const vendorType = { aggressive: '저가 도매업체', premium: '고급 도매업체', copycat: '표준 도매업체' }[rv.pattern] || '–';
+        lines.push(`${rv.name}: ${fmtW(rv.sellPrice || 0)} 판매 중 / ${vendorType} 이용 추정 / 점유율 ${pct(rv.marketShare)}`);
+      });
+      lines.push(`경기: ${ecoKR} | ${catKR} 수요 ×${ecoW.toFixed(1)}`);
+    } else if (diff === 'hard') {
+      // Hard: 거시 지표만
+      const totalShare = s.rivals.reduce((a, r) => a + r.marketShare, 0);
+      lines.push(`거시 지표 브리핑`);
+      lines.push(`• 경기: ${ecoKR} | 금리: ${(s.interestRate * 100).toFixed(1)}% | 수요 배율: ×${ecoW.toFixed(1)}`);
+      lines.push(`• 내 점유율: ${pct(s.marketShare)} / 경쟁사 합계: ${pct(totalShare)}`);
+      lines.push(`• 활성 라이벌: ${s.rivals.filter(r => !r.bankrupt).length}명`);
+    } else if (diff === 'insane') {
+      // Insane: 거시 지표 + 30% 허위 정보
+      lines.push(`[인세인 모드] 데이터 신뢰도 불보장`);
+      lines.push(`• 금리: ${(s.interestRate * 100).toFixed(1)}% | 경기: ${ecoKR}`);
+      s.rivals.filter(r => !r.bankrupt).forEach(rv => {
+        if (Math.random() < 0.30) {
+          // 30% 확률: 허위 데이터 출력 (⚠️ 표시)
+          const fakePrice = Math.round(rv.sellPrice * (0.5 + Math.random()));
+          const fakeShare = (Math.random() * 0.6).toFixed(3);
+          lines.push(`⚠️ [허위] ${rv.name}: ${fmtW(fakePrice)} / 점유율 ${pct(parseFloat(fakeShare))}`);
+        } else {
+          lines.push(`• ${rv.name}: 약 ${fmtW(rv.sellPrice || 0)} 추정`);
+        }
+      });
+    }
+  }
+
+  // DOM 반영
+  const avatar = document.getElementById('adv-avatar');
+  const modeEl = document.getElementById('adv-mode');
+  const bubble = document.getElementById('adv-bubble');
+  if (avatar) avatar.textContent = ADVISOR_AVATAR[diff] || '🤖';
+  if (modeEl) modeEl.textContent = ADVISOR_LABEL[diff] || 'AI 비서';
+  if (bubble) {
+    bubble.innerHTML = lines.map(l => `<div style="margin-bottom:3px;">${l}</div>`).join('');
+    bubble.className = `advisor-bubble advisor-${diff}`;
+  }
+}
+
+// updateAdvisor를 generateSecretaryReport로 통일
+function updateAdvisor(report) { generateSecretaryReport(report); }
+
+// ════════════════════════════════════════════════════════
+//  Step 2-F: 난이도 선택 (applyDifficulty 재정의 없음, 기존 유지)
+//            + 게임 시작 시 AI 비서 초기 브리핑
+// ════════════════════════════════════════════════════════
+
+// ── 난이도 선택 ───────────────────────────────────
+document.querySelectorAll('.diff-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const diff = card.dataset.diff;
+    applyDifficulty(diff);
+    document.getElementById('diff-screen').classList.add('hidden');
+    document.getElementById('main-layout').style.display = '';
+    addLog(`게임 시작: ${DIFF_LABEL[diff]}`, 'info');
+    updateUI();
+    generateSecretaryReport(); // 초기 비서 브리핑
+    setText('search-status', '아이템명을 입력하고 🔍 탐색 버튼을 눌러 도매업체를 불러오세요');
+  });
+});
+
+
+// ════════════════════════════════════════════════════════
+//  캐피로그 — Step 4-1: 랜덤 이벤트 시스템
+//  (백엔드 데이터 + 추첨 엔진 / UI 연동 없음)
+// ════════════════════════════════════════════════════════
+
+// ── 이벤트 타입 상수 ────────────────────────────────────
+const EV = {
+  BRAND:        'brand_value',       // 브랜드 가치 변동
+  RESIST:       'price_resistance',  // 가격 저항성 변동
+  COST_MUL:     'cost_reduction',    // 운영비 배율 변동
+  HR_BOOST:     'hr_boost',          // 교육 효과 증폭 (교육비 할인)
+  MARKET_MUL:   'market_demand_mul', // 시장 수요 배율 임시 변동
+  INTEREST:     'interest_rate',     // 이자율 변동
+  CAPITAL:      'capital_once',      // 현금 즉시 변동 (duration=0)
+  DEBT:         'debt_once',         // 부채 즉시 변동 (duration=0)
+  QUALITY:      'quality_bonus',     // 품질 점수 보정
+  SHUTDOWN:     'factory_shutdown',  // 공장 일시 중단 (duration=N)
+  BRAND_DECAY:  'brand_decay',       // 매 턴 브랜드 감소
+  SHARE_BOOST:  'share_once',        // 점유율 즉시 변동 (duration=0)
+};
+
+// ── 30종 이벤트 마스터 배열 ─────────────────────────────
+const randomEvents = [
+
+  /* ════ TIER A — 강력·희귀 (큰 폭 변화) ════════════ */
+
+  {
+    id: 'A01',
+    name: '대형 유통사 긴급 납품 계약',
+    desc: '대형 이커머스 플랫폼에서 긴급 물량을 요청했습니다. 이번 달 수요가 급증합니다.',
+    type: EV.MARKET_MUL,
+    value: 0.6,            // 수요 배율 +60%
+    duration: 2,
+    tier: 'A',
+    condition: s => s.currentContract !== null && s.marketShare >= 0.15,
+    baseWeight: 5,
+  },
+  {
+    id: 'A02',
+    name: '언론 바이럴 — 제품 리뷰 폭발',
+    desc: '유명 유튜버의 호평 리뷰가 바이럴되며 브랜드 가치가 급등했습니다.',
+    type: EV.BRAND,
+    value: 40,
+    duration: 3,
+    tier: 'A',
+    condition: s => s.brandValue >= 30,
+    baseWeight: 4,
+  },
+  {
+    id: 'A03',
+    name: '공급망 붕괴 — 원자재 수급 위기',
+    desc: '글로벌 공급망 혼란으로 재고가 바닥났습니다. 수요가 급감합니다.',
+    type: EV.MARKET_MUL,
+    value: -0.35,
+    duration: 3,
+    tier: 'A',
+    condition: s => s.turn >= 20,
+    baseWeight: 4,
+  },
+  {
+    id: 'A04',
+    name: '외국계 투자사 지분 참여',
+    desc: '해외 벤처캐피털이 투자를 결정했습니다. 즉시 현금이 유입됩니다.',
+    type: EV.CAPITAL,
+    value: 80_000_000,     // +8천만 즉시
+    duration: 0,
+    tier: 'A',
+    condition: s => s.turn >= 30 && s.brandValue >= 50,
+    baseWeight: 3,
+  },
+  {
+    id: 'A05',
+    name: '공정위 기습 감사',
+    desc: '공정거래위원회 감사가 나왔습니다. 과징금이 부과됩니다.',
+    type: EV.CAPITAL,
+    value: -50_000_000,
+    duration: 0,
+    tier: 'A',
+    condition: s => s.turn >= 10,
+    baseWeight: 3,
+    _karmaKey: 'cartel', // 카르텔 운영 중이면 가중치 5배
+  },
+  {
+    id: 'A06',
+    name: '대규모 리콜 사태',
+    desc: '제품 결함으로 대규모 리콜이 발생했습니다. 브랜드와 운영비에 큰 타격.',
+    type: EV.BRAND,
+    value: -60,
+    duration: 0,
+    tier: 'A',
+    condition: s => s.currentContract !== null && s.turn >= 15,
+    baseWeight: 3,
+    _secondary: { type: EV.COST_MUL, value: 0.25, duration: 2 },
+  },
+  {
+    id: 'A07',
+    name: '국가 R&D 지원금 선정',
+    desc: '정부 중소기업 R&D 지원 사업에 선정됐습니다. 운영비가 절감됩니다.',
+    type: EV.COST_MUL,
+    value: -0.20,
+    duration: 4,
+    tier: 'A',
+    condition: s => s.turn >= 25 && s.factory && s.factory.built,
+    baseWeight: 4,
+  },
+  {
+    id: 'A08',
+    name: '산업재해 민사소송 패소',
+    desc: '과거 산업재해 소송에서 패소했습니다. 거액의 배상금이 청구됩니다.',
+    type: EV.CAPITAL,
+    value: -120_000_000,
+    duration: 0,
+    tier: 'A',
+    condition: s => s.factory && s.factory.accidents >= 1,
+    baseWeight: 6,
+    _karmaKey: 'safetyOff', // 안전비 미납 시 가중치 4배
+  },
+
+  /* ════ TIER B — 중간 영향 (게임 흐름 변화) ════════ */
+
+  {
+    id: 'B01',
+    name: '사내 피트니스 앱 도입',
+    desc: '직원 복지 개선으로 생산성이 오릅니다. 교육 효과가 증폭됩니다.',
+    type: EV.HR_BOOST,
+    value: 0.15,           // 교육비 15% 할인
+    duration: 3,
+    tier: 'B',
+    condition: s => s.hr && s.hr.totalTrainings >= 3,
+    baseWeight: 8,
+  },
+  {
+    id: 'B02',
+    name: '경쟁사 내부 고발 — 특허 분쟁',
+    desc: '라이벌이 특허 소송에 휘말려 영업이 위축됩니다. 수요가 우리에게 쏠립니다.',
+    type: EV.MARKET_MUL,
+    value: 0.25,
+    duration: 2,
+    tier: 'B',
+    condition: s => s.rivals && s.rivals.some(r => !r.bankrupt),
+    baseWeight: 7,
+  },
+  {
+    id: 'B03',
+    name: '금융시장 불안 — 회사채 금리 상승',
+    desc: '채권시장 불안으로 대출 금리가 일시 상승합니다.',
+    type: EV.INTEREST,
+    value: 0.03,           // +3%p
+    duration: 3,
+    tier: 'B',
+    condition: s => s.debt > 0,
+    baseWeight: 9,
+    _karmaKey: 'highDebt',  // 부채 비율 높을수록 가중치 증가
+  },
+  {
+    id: 'B04',
+    name: '물류 파업 — 배송 지연',
+    desc: '화물 노조 파업으로 납기가 지연됩니다. 이번 달 수요가 감소합니다.',
+    type: EV.MARKET_MUL,
+    value: -0.20,
+    duration: 2,
+    tier: 'B',
+    condition: s => s.turn >= 10,
+    baseWeight: 8,
+  },
+  {
+    id: 'B05',
+    name: '인플루언서 협업 캠페인 성공',
+    desc: 'SNS 마케팅 캠페인이 대성공입니다. 브랜드 가치가 오르고 저항성이 높아집니다.',
+    type: EV.BRAND,
+    value: 20,
+    duration: 3,
+    tier: 'B',
+    condition: s => s.brandValue >= 20 && s.marketing && s.marketing.totalSpent >= 500_000,
+    baseWeight: 7,
+    _secondary: { type: EV.RESIST, value: 0.04, duration: 3 },
+  },
+  {
+    id: 'B06',
+    name: '원자재 가격 급등',
+    desc: '국제 원자재 가격이 폭등했습니다. 운영비가 일시적으로 상승합니다.',
+    type: EV.COST_MUL,
+    value: 0.18,
+    duration: 3,
+    tier: 'B',
+    condition: s => s.currentContract !== null,
+    baseWeight: 9,
+  },
+  {
+    id: 'B07',
+    name: '공장 설비 고장',
+    desc: '핵심 생산 설비가 고장났습니다. 수리 기간 동안 생산이 중단됩니다.',
+    type: EV.SHUTDOWN,
+    value: 1,              // 1턴 영업정지
+    duration: 1,
+    tier: 'B',
+    condition: s => s.factory && s.factory.built && s.factory.buildTurnsLeft <= 0,
+    baseWeight: 6,
+    _karmaKey: 'safetyOff',
+  },
+  {
+    id: 'B08',
+    name: '세무조사 추징금',
+    desc: '세무조사에서 가산세 추징금이 부과됐습니다.',
+    type: EV.CAPITAL,
+    value: -30_000_000,
+    duration: 0,
+    tier: 'B',
+    condition: s => s.turn >= 20 && s.cumulativeProfit > 0,
+    baseWeight: 6,
+  },
+  {
+    id: 'B09',
+    name: '경기부양책 — 소비쿠폰 지급',
+    desc: '정부 소비 진작 정책으로 소비자 구매력이 높아졌습니다.',
+    type: EV.MARKET_MUL,
+    value: 0.18,
+    duration: 2,
+    tier: 'B',
+    condition: s => s.economy && s.economy.phase === 'recession',
+    baseWeight: 10,
+  },
+
+  /* ════ TIER C — 소폭·빈번 (전술적 선택 영향) ════ */
+
+  {
+    id: 'C01',
+    name: '팀 워크숍 성과 — 직원 사기 상승',
+    desc: '워크숍 이후 팀 결속력이 높아졌습니다. 가격 저항성이 소폭 개선됩니다.',
+    type: EV.RESIST,
+    value: 0.02,
+    duration: 2,
+    tier: 'C',
+    condition: s => s.hr && s.hr.totalTrainings >= 1,
+    baseWeight: 15,
+  },
+  {
+    id: 'C02',
+    name: '소셜미디어 구전 효과',
+    desc: '고객 후기가 자연스럽게 퍼지며 브랜드 인지도가 올랐습니다.',
+    type: EV.BRAND,
+    value: 8,
+    duration: 2,
+    tier: 'C',
+    condition: s => s.brandValue >= 10,
+    baseWeight: 14,
+  },
+  {
+    id: 'C03',
+    name: '물가 안정 — 원가 소폭 하락',
+    desc: '원자재 수급이 안정돼 원가가 내려갔습니다. 이번 달 운영비가 절감됩니다.',
+    type: EV.COST_MUL,
+    value: -0.07,
+    duration: 2,
+    tier: 'C',
+    condition: s => s.economy && s.economy.phase !== 'boom',
+    baseWeight: 13,
+  },
+  {
+    id: 'C04',
+    name: '소액 보조금 수령',
+    desc: '지자체 소상공인 지원금을 수령했습니다.',
+    type: EV.CAPITAL,
+    value: 5_000_000,
+    duration: 0,
+    tier: 'C',
+    condition: s => s.turn >= 5,
+    baseWeight: 12,
+  },
+  {
+    id: 'C05',
+    name: '고객 클레임 폭증',
+    desc: '상품 불만 민원이 급증하며 브랜드 이미지가 타격을 입었습니다.',
+    type: EV.BRAND,
+    value: -12,
+    duration: 0,
+    tier: 'C',
+    condition: s => s.currentContract !== null,
+    baseWeight: 13,
+  },
+  {
+    id: 'C06',
+    name: '단기 대출 금리 인하 프로모션',
+    desc: '거래 은행이 금리 인하 프로모션을 제공합니다.',
+    type: EV.INTEREST,
+    value: -0.015,
+    duration: 2,
+    tier: 'C',
+    condition: s => s.debt > 0,
+    baseWeight: 11,
+  },
+  {
+    id: 'C07',
+    name: '업계 행사 참여 — 소규모 홍보 성과',
+    desc: '박람회 참가 후 브랜드 인지도가 소폭 상승했습니다.',
+    type: EV.BRAND,
+    value: 5,
+    duration: 2,
+    tier: 'C',
+    condition: s => s.turn >= 10,
+    baseWeight: 14,
+  },
+  {
+    id: 'C08',
+    name: '서버/IT 시스템 장애',
+    desc: '내부 IT 시스템 오류로 업무가 지연됐습니다. 운영비가 소폭 상승합니다.',
+    type: EV.COST_MUL,
+    value: 0.06,
+    duration: 1,
+    tier: 'C',
+    condition: s => s.turn >= 5,
+    baseWeight: 13,
+  },
+
+  /* ════ TIER D — 미묘·상황 특화 (숨은 전략 요소) ═ */
+
+  {
+    id: 'D01',
+    name: '공장 스마트 자동화 시범 도입',
+    desc: '스마트 팩토리 파일럿이 성공했습니다. 품질 점수 보정이 적용됩니다.',
+    type: EV.QUALITY,
+    value: 15,
+    duration: 4,
+    tier: 'D',
+    condition: s => s.factory && s.factory.built && s.factory.upgradeLevel >= 1,
+    baseWeight: 6,
+  },
+  {
+    id: 'D02',
+    name: '카르텔 제보 위협 — 내부 고발 징조',
+    desc: '익명 제보가 접수됐습니다. 이번 달 담합 적발 확률이 2배가 됩니다.',
+    type: EV.BRAND,   // 브랜드 소폭 감소 + 담합 위험 상징
+    value: -5,
+    duration: 1,
+    tier: 'D',
+    condition: s => s.cartel && s.cartel.active,
+    baseWeight: 20,   // 담합 중일 때 높은 확률로 등장
+    _karmaKey: 'cartel',
+  },
+  {
+    id: 'D03',
+    name: '독점 브랜드 프리미엄 효과',
+    desc: '시장 지배적 지위가 공고해졌습니다. 가격 저항성이 크게 강화됩니다.',
+    type: EV.RESIST,
+    value: 0.05,
+    duration: 4,
+    tier: 'D',
+    condition: s => s.marketShare >= 0.65,
+    baseWeight: 8,
+  },
+  {
+    id: 'D04',
+    name: '고금리 대환대출 기회',
+    desc: '낮은 금리로 기존 대출을 대환할 기회입니다. 부채가 소폭 감소합니다.',
+    type: EV.DEBT,
+    value: -15_000_000,
+    duration: 0,
+    tier: 'D',
+    condition: s => s.debt >= 50_000_000 && s.economy && s.economy.phase === 'recession',
+    baseWeight: 7,
+  },
+  {
+    id: 'D05',
+    name: '불황기 시장 점유율 기습 확대',
+    desc: '경쟁사가 자금 위기를 겪는 틈을 타 점유율을 확보했습니다.',
+    type: EV.SHARE_BOOST,
+    value: 0.05,           // +5% 즉시
+    duration: 0,
+    tier: 'D',
+    condition: s => s.economy && s.economy.phase === 'recession'
+                 && s.rivals && s.rivals.some(r => !r.bankrupt && (r.capital||0) < 10_000_000),
+    baseWeight: 9,
+  },
+
+];
+
+// ════════════════════════════════════════════════════════
+//  Step 4-1: 다층 트리거 & 가중치 추첨 엔진
+// ════════════════════════════════════════════════════════
+
+// ── 내부 상수 ────────────────────────────────────────
+const EVENT_TRIGGER_PROB = 0.15; // 매 턴 15% 확률로 이벤트 발동
+
+// ── 업보(karma) 가중치 배율 계산기 ──────────────────
+function _getKarmaMultiplier(event, s) {
+  const key = event._karmaKey;
+  if (!key) return 1;
+
+  switch (key) {
+    case 'cartel':
+      // 담합 활성 시 해당 이벤트 가중치 5배
+      return s.cartel && s.cartel.active ? 5 : 1;
+
+    case 'safetyOff': {
+      // 안전비 미납 누적: 0% = 1배, 50%+ = 4배, 100% = 8배
+      const risk = s.factory ? (s.factory.accidentRisk || 0) : 0;
+      return 1 + Math.floor(risk * 7);   // 0→1, 0.5→4.5, 1.0→8
+    }
+
+    case 'highDebt': {
+      // 순자산 대비 부채 비율: 100% 초과 시 가중치 3배
+      const nw = s.capital + s.propertyValue - s.debt;
+      if (nw <= 0) return 4;
+      const ratio = s.debt / Math.max(nw, 1);
+      return ratio >= 2 ? 4 : ratio >= 1 ? 3 : ratio >= 0.5 ? 2 : 1;
+    }
+
+    default:
+      return 1;
+  }
+}
+
+// ── 가중치 기반 랜덤 추첨 ───────────────────────────
+function _weightedDraw(pool) {
+  if (pool.length === 0) return null;
+  const totalWeight = pool.reduce((sum, e) => sum + e._w, 0);
+  if (totalWeight <= 0) return pool[Math.floor(Math.random() * pool.length)];
+
+  let r = Math.random() * totalWeight;
+  for (const entry of pool) {
+    r -= entry._w;
+    if (r <= 0) return entry;
+  }
+  return pool[pool.length - 1]; // fallback
+}
+
+// ── 이벤트 즉시 적용 ────────────────────────────────
+function _applyEventEffect(event, s) {
+  const v = event.value;
+  switch (event.type) {
+    case EV.CAPITAL:
+      s.capital += v;
+      break;
+    case EV.DEBT:
+      s.debt = Math.max(0, s.debt + v);
+      break;
+    case EV.BRAND:
+      if (event.duration === 0) {
+        s.brandValue = Math.max(0, Math.min(1000, s.brandValue + v));
+      }
+      break;
+    case EV.SHARE_BOOST:
+      s.marketShare = Math.min(1, Math.max(0, s.marketShare + v));
+      break;
+    case EV.SHUTDOWN:
+      s._shutdownLeft = Math.max(s._shutdownLeft || 0, Math.ceil(v));
+      break;
+    default:
+      break; // 지속형은 activeEffects에서 매 턴 처리
+  }
+
+  // 2차 효과 즉시 처리
+  if (event._secondary && event._secondary.duration === 0) {
+    _applyEventEffect(event._secondary, s);
+  }
+}
+
+// ── activeEffects 매 턴 틱 처리 ─────────────────────
+function tickActiveEffects(s) {
+  const keep = [];
+  for (const eff of (s.activeEffects || [])) {
+    eff.turnsLeft--;
+    if (eff.turnsLeft > 0) keep.push(eff);
+    else {
+      // 만료: 브랜드/저항성 등 지속형은 효과 원상복구가 필요한 경우 처리
+      // (운영비 배율 등은 아래 getActiveEffectModifier로 실시간 계산하므로 별도 복구 불필요)
+    }
+  }
+  s.activeEffects = keep;
+}
+
+// ── 활성 효과 합산 조회 (정산 엔진에서 호출) ─────────
+/**
+ * @param {string} type EV.COST_MUL | EV.MARKET_MUL | EV.INTEREST | ...
+ * @returns {number} 해당 타입의 activeEffects 총합
+ */
+function getActiveEffectModifier(type) {
+  const s = gameState;
+  return (s.activeEffects || [])
+    .filter(e => e.type === type)
+    .reduce((sum, e) => sum + e.value, 0);
+}
+
+// ── 핵심 함수: rollMonthlyEvent ──────────────────────
+/**
+ * 매 턴 정산 시 호출. 15% 확률로 이벤트 1개를 추첨·적용.
+ * @param  {object} s — gameState 참조
+ * @returns {object|null} — 발동된 이벤트 객체 (없으면 null)
+ */
+function rollMonthlyEvent(s) {
+  // 0) 15% 확률 게이트
+  if (Math.random() >= EVENT_TRIGGER_PROB) return null;
+  // 블랙스완 진행 중에는 이벤트 발동 억제
+  if (typeof _bsActive !== 'undefined' && _bsActive) return null;
+
+  // ─── 1차 필터: 진행 턴 층 ───────────────────────
+  // 이벤트 tier에 따른 등장 가능 턴 범위
+  const tierTurnRange = { A: 25, B: 12, C: 1, D: 1 };
+  const turnFiltered = randomEvents.filter(ev => {
+    const minTurn = tierTurnRange[ev.tier] || 1;
+    return s.turn >= minTurn;
+  });
+
+  // ─── 2차 필터: 상태 조건 층 ─────────────────────
+  const condFiltered = turnFiltered.filter(ev => {
+    try {
+      return ev.condition ? ev.condition(s) : true;
+    } catch {
+      return false;
+    }
+  });
+
+  if (condFiltered.length === 0) return null;
+
+  // ─── 3차 가중치: 업보(karma) 층 ─────────────────
+  const pool = condFiltered.map(ev => ({
+    ...ev,
+    _w: ev.baseWeight * _getKarmaMultiplier(ev, s),
+  }));
+
+  // ─── 최종 추첨 ──────────────────────────────────
+  const chosen = _weightedDraw(pool);
+  if (!chosen) return null;
+
+  // 즉시 효과 적용 (duration === 0)
+  if (chosen.duration === 0) {
+    _applyEventEffect(chosen, s);
+  }
+
+  // 지속형 효과 → activeEffects 등록
+  if (chosen.duration >= 1) {
+    // 중복 등록 방지: 같은 id가 이미 활성이면 갱신
+    const existIdx = s.activeEffects.findIndex(e => e.id === chosen.id);
+    const effEntry = {
+      id:          chosen.id,
+      name:        chosen.name,
+      type:        chosen.type,
+      value:       chosen.value,
+      turnsLeft:   chosen.duration,
+      appliedTurn: s.turn,
+      tier:        chosen.tier,
+    };
+    if (existIdx >= 0) s.activeEffects[existIdx] = effEntry;
+    else               s.activeEffects.push(effEntry);
+
+    // 2차 효과도 지속형이면 등록
+    if (chosen._secondary && chosen._secondary.duration >= 1) {
+      const secEntry = {
+        id:          chosen.id + '_sec',
+        name:        chosen.name + ' (부가효과)',
+        type:        chosen._secondary.type,
+        value:       chosen._secondary.value,
+        turnsLeft:   chosen._secondary.duration,
+        appliedTurn: s.turn,
+        tier:        chosen.tier,
+      };
+      const secIdx = s.activeEffects.findIndex(e => e.id === secEntry.id);
+      if (secIdx >= 0) s.activeEffects[secIdx] = secEntry;
+      else             s.activeEffects.push(secEntry);
+    }
+  }
+
+  return chosen;
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 4-1: 정산 엔진 훅 (runTurn 내부에서 호출)
+//
+//  runTurn() 내부에서 아래 두 줄을 정산 흐름 적절한 위치에 삽입하면
+//  UI 연동 전에도 로직이 완전히 작동합니다.
+//
+//  ① 매 턴 초반 — 활성 효과 틱:
+//       tickActiveEffects(s);
+//
+//  ② 고정비 계산 직전 — 이벤트 추첨:
+//       const monthlyEvent = rollMonthlyEvent(s);
+//
+//  ③ 수요/운영비 계산 시 activeEffects 반영:
+//       const evDemandMul  = getActiveEffectModifier(EV.MARKET_MUL);   // 수요 보정
+//       const evCostMul    = getActiveEffectModifier(EV.COST_MUL);     // 운영비 보정
+//       const evRateAdj    = getActiveEffectModifier(EV.INTEREST);     // 금리 보정
+//
+//  ④ lastTurnResult에 monthlyEvent 포함 → UI 단계에서 표시
+// ════════════════════════════════════════════════════════
+
+
+
+// ════════════════════════════════════════════════════════
+//  Step 4-2: 뉴스 속보 모달
+// ════════════════════════════════════════════════════════
+
+// 이벤트 타입별 UI 메타
+const EV_UI_META = {
+  [EV.BRAND]:      { icon:'⭐', posLabel:'+브랜드 가치', negLabel:'-브랜드 가치', unit:'pt' },
+  [EV.RESIST]:     { icon:'🛡️', posLabel:'+가격 저항성', negLabel:'-가격 저항성', unit:'%', scale:100 },
+  [EV.COST_MUL]:   { icon:'💸', posLabel:'+운영비',      negLabel:'-운영비',      unit:'%', scale:100 },
+  [EV.HR_BOOST]:   { icon:'👥', posLabel:'+직원 효율',   negLabel:'-직원 효율',   unit:'%', scale:100 },
+  [EV.MARKET_MUL]: { icon:'📊', posLabel:'+시장 수요',   negLabel:'-시장 수요',   unit:'%', scale:100 },
+  [EV.INTEREST]:   { icon:'🏦', posLabel:'+이자율',      negLabel:'-이자율',      unit:'%', scale:100 },
+  [EV.CAPITAL]:    { icon:'💰', posLabel:'현금 +',       negLabel:'현금 -',       unit:'원' },
+  [EV.DEBT]:       { icon:'💳', posLabel:'부채 +',       negLabel:'부채 감소',    unit:'원' },
+  [EV.QUALITY]:    { icon:'🏭', posLabel:'+품질 점수',   negLabel:'-품질 점수',   unit:'pt' },
+  [EV.SHUTDOWN]:   { icon:'⛔', posLabel:'',             negLabel:'영업 중단',    unit:'턴' },
+  [EV.BRAND_DECAY]:{ icon:'📉', posLabel:'',             negLabel:'브랜드 감소',  unit:'/턴' },
+  [EV.SHARE_BOOST]:{ icon:'📈', posLabel:'+점유율',      negLabel:'-점유율',      unit:'%', scale:100 },
+};
+
+const TIER_LABELS = { A:'⚡ 주요 뉴스', B:'📰 뉴스 속보', C:'📝 소식', D:'🔍 특이 사항' };
+
+function _evEffectLabel(event) {
+  const meta = EV_UI_META[event.type] || { icon:'ℹ️', posLabel:'효과', negLabel:'효과', unit:'' };
+  const isPos = event.value >= 0;
+  const absV  = Math.abs(event.value);
+  const scale = meta.scale || 1;
+  const dispV = scale > 1 ? (absV * scale).toFixed(1) + meta.unit : fmtW(absV);
+  const label = isPos ? meta.posLabel : meta.negLabel;
+  const dur   = event.duration > 0 ? ` (${event.duration}턴 지속)` : ' (즉시 적용)';
+  return { icon: meta.icon, label: `${label} ${dispV}${dur}`, isPos };
+}
+
+function showNewsBreaking(event) {
+  const ov  = document.getElementById('news-ov');
+  const box = document.getElementById('news-box');
+  if (!ov || !box) return;
+
+  const flashCls = `news-flash-${event.tier}`;
+  const tierLbl  = TIER_LABELS[event.tier] || '뉴스';
+  const eff      = _evEffectLabel(event);
+  const effCls   = event.duration === 0 && event.value < 0 ? 'news-effect-neg'
+                 : event.duration === 0 && event.value > 0 ? 'news-effect-pos'
+                 : event.value < 0 ? 'news-effect-neg' : 'news-effect-pos';
+  const durText  = event.duration > 0 ? `${event.duration}개월 지속` : '즉시 효과';
+
+  // 2차 효과 행
+  let secRow = '';
+  if (event._secondary) {
+    const s2 = _evEffectLabel(event._secondary);
+    const s2Cls = event._secondary.value < 0 ? 'news-effect-neg' : 'news-effect-pos';
+    secRow = `<div class="news-effect-row ${s2Cls}">
+      <span class="news-effect-icon">${s2.icon}</span>
+      <span class="news-effect-text">${s2.label}</span>
+    </div>`;
+  }
+
+  box.innerHTML = `
+    <div class="news-band">
+      <span class="news-flash ${flashCls}">${tierLbl}</span>
+      <span class="news-tier-label">T${gameState.turn} · ${durText}</span>
+    </div>
+    <div class="news-title">${event.name}</div>
+    <div class="news-desc">${event.desc || ''}</div>
+    <div class="news-effect-row ${effCls}">
+      <span class="news-effect-icon">${eff.icon}</span>
+      <span class="news-effect-text">${eff.label}</span>
+    </div>
+    ${secRow}
+    <button class="news-ok-btn" id="news-ok-btn">확인</button>`;
+
+  ov.classList.remove('hidden');
+  ov.style.display = '';
+  ov.style.pointerEvents = '';
+
+  document.getElementById('news-ok-btn')?.addEventListener('click', () => {
+    ov.classList.add('hidden');
+    ov.style.display       = 'none';
+    ov.style.pointerEvents = 'none';
+  }, { once: true });
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 4-2: 상태 보드 렌더 함수
+// ════════════════════════════════════════════════════════
+function renderStatusBoard() {
+  const el = document.getElementById('status-board-list');
+  if (!el) return;
+
+  const effects = gameState.activeEffects || [];
+  if (effects.length === 0) {
+    el.innerHTML = '<div class="status-none">현재 특이 사항 없음</div>';
+    return;
+  }
+
+  el.innerHTML = effects.map(eff => {
+    const isPos = eff.value >= 0;
+    const isNeg = eff.value < 0;
+    const itemCls = isPos ? 'status-item-pos' : isNeg ? 'status-item-neg' : 'status-item-neu';
+    const turnsCls= isPos ? 'turns-pos'       : isNeg ? 'turns-neg'       : 'turns-neu';
+    const meta    = EV_UI_META[eff.type] || { icon:'ℹ️' };
+    return `<div class="status-item ${itemCls}">
+      <span style="font-size:13px;flex-shrink:0;">${meta.icon}</span>
+      <span class="status-item-name" title="${eff.name}">${eff.name}</span>
+      <span class="status-item-turns ${turnsCls}">${eff.turnsLeft}개월</span>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+// ── updateUI 확장 (Step 4-2) — 원본 함수에 통합됨
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ════════════════════════════════════════════════════════
+//  Step 5-A: 타임라인 업데이트
+// ════════════════════════════════════════════════════════
+function updateTimeline() {
+  const t   = gameState.turn;
+  const pct = Math.min(100, ((t-1)/119)*100);
+  const fill = document.getElementById('tl-fill');
+  const cur  = document.getElementById('tl-cur');
+  const num  = document.getElementById('tl-turn-num');
+  if(fill) fill.style.width = pct.toFixed(2)+'%';
+  if(cur)  cur.style.left   = pct.toFixed(2)+'%';
+  if(num)  num.textContent  = t;
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-B: 사옥 진화 렌더링
+// ════════════════════════════════════════════════════════
+function getHQStage() {
+  const nw = gameState.capital + gameState.propertyValue - gameState.debt;
+  if(nw >= 500_000_000) return {emoji:'🏙️', stage:'대기업',   name:'도심 마천루'};
+  if(nw >= 100_000_000) return {emoji:'🏬', stage:'성장기',   name:'IT 빌딩'};
+  if(nw >=  30_000_000) return {emoji:'🏢', stage:'초기 성장',name:'임대 사무실'};
+  return {emoji:'🏚️', stage:'창업 초기', name:'허름한 차고지'};
+}
+function updateHQVisual() {
+  const hq   = getHQStage();
+  const eEl  = document.getElementById('hq-emoji');
+  const sEl  = document.getElementById('hq-stage');
+  const nEl  = document.getElementById('hq-name');
+  if(!eEl) return;
+  // P-01: 진화 감지 → 애니메이션 + 토스트
+  if(eEl.textContent && eEl.textContent !== hq.emoji && eEl.textContent !== '🏚️') {
+    eEl.style.animation = 'none';
+    eEl.style.transform = 'scale(0) rotate(-20deg)';
+    setTimeout(() => {
+      eEl.textContent = hq.emoji;
+      eEl.style.transition = 'transform 0.45s cubic-bezier(.22,1,.36,1)';
+      eEl.style.transform  = 'scale(1.3)';
+      setTimeout(() => { eEl.style.transform = 'scale(1)'; }, 450);
+    }, 150);
+    toast('🏢 사옥 업그레이드! ' + hq.name, 'good');
+    addLog('🏢 사옥 진화: '+hq.name, 'good');
+  } else {
+    eEl.textContent = hq.emoji;
+  }
+  if(sEl) sEl.textContent = hq.stage;
+  if(nEl) nEl.textContent = hq.name;
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-C: 파이 차트 렌더링 (conic-gradient)
+// ════════════════════════════════════════════════════════
+const PIE_COLORS=['#58A6FF','#FF6B6B','#51CF66','#FFD43B','#CC5DE8','#FF922B','#20C997'];
+function renderPieChart() {
+  const s=gameState;
+  const myShare = s.marketShare||0;
+  const rivals  = (s.rivals||[]).filter(r=>!r.bankrupt);
+  const pieEl   = document.getElementById('pie-canvas');
+  const ctrEl   = document.getElementById('pie-center');
+  const legEl   = document.getElementById('pie-legend');
+  const rvEl    = document.getElementById('rp-rivals');
+  if(!pieEl) return;
+  const segs=[{name:'나',share:myShare,color:PIE_COLORS[0]}];
+  rivals.forEach((rv,i)=>segs.push({name:rv.name,share:rv.marketShare||0,color:PIE_COLORS[(i+1)%PIE_COLORS.length]}));
+  const rest=Math.max(0,1-segs.reduce((s,x)=>s+x.share,0));
+  if(rest>0.001) segs.push({name:'기타',share:rest,color:'#30363D'});
+  let deg=0;
+  const parts=segs.map(seg=>{const s=deg;deg+=seg.share*360;return `${seg.color} ${s.toFixed(1)}deg ${deg.toFixed(1)}deg`;});
+  pieEl.style.background=`conic-gradient(${parts.join(',')})`;
+  if(ctrEl) ctrEl.textContent=(myShare*100).toFixed(0)+'%';
+  if(legEl) legEl.innerHTML=segs.filter(s=>s.name!=='기타').map(seg=>`<div class="pie-legend-row"><div class="pie-dot" style="background:${seg.color}"></div><span class="pie-name">${seg.name}</span><span class="pie-pct" style="color:${seg.color}">${(seg.share*100).toFixed(1)}%</span></div>`).join('');
+  if(rvEl) {
+    if(!rivals.length){rvEl.innerHTML='<div style="font-size:9px;color:var(--dim);">라이벌 없음</div>';}
+    else rvEl.innerHTML=rivals.map((rv,i)=>`<div class="rp-rival-row"><div class="pie-dot" style="background:${PIE_COLORS[(i+1)%PIE_COLORS.length]};width:6px;height:6px;flex-shrink:0;border-radius:50%;"></div><span class="rp-rival-name">${rv.name}${rv.bankrupt?' 💀':''}</span><span class="rp-rival-price">${rv.sellPrice>0?fmtW(rv.sellPrice):'–'}</span><span class="rp-rival-share" style="color:${PIE_COLORS[(i+1)%PIE_COLORS.length]}">${(rv.marketShare*100).toFixed(1)}%</span></div>`).join('');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-D: 45종 결재 서류 이벤트 데이터베이스
+// ════════════════════════════════════════════════════════
+const docEvents=[
+  {id:'D01',name:'길가의 쓰레기',desc:'길에서 쓰레기를 발견했습니다.',
+   choices:[
+     {label:'줍는다',probs:[{p:.80,effect:'brand',v:10,msg:'🌟 친환경 기업 이미지! 브랜드 +10'},{p:.20,effect:'brand',v:-15,msg:'😱 무단투기 오해! 브랜드 -15'}]},
+     {label:'무시한다',probs:[{p:.90,effect:'none',v:0,msg:'😐 별일 없이 지나쳤습니다'},{p:.10,effect:'rivalBrand',v:10,msg:'😤 라이벌이 주워 브랜드 홍보 활용'}]},
+     {label:'내 것도 버린다',probs:[{p:.70,effect:'capital',v:-5000000,msg:'🚨 무단투기 벌금 -500만'},{p:.30,effect:'resist',v:-0.10,msg:'🎨 현대미술 인정! 저항성 -10%'}]},
+   ]},
+  {id:'D02',name:'사내 익명 게시판 불만글',desc:'익명 게시판에 강도 높은 불만글이 올라왔습니다.',
+   choices:[
+     {label:'게시판 폐쇄',probs:[{p:.70,effect:'shutdown',v:1,msg:'⚠️ 전직원 파업! 1턴 영업 정지'},{p:.30,effect:'none',v:0,msg:'😌 불만이 잠잠해졌습니다'}]},
+     {label:'전직원 피자',probs:[{p:.50,effect:'resist',v:-0.05,msg:'🍕 사기 증진! 저항성 -5%'},{p:.50,effect:'brand',v:-10,msg:'😡 개돼지 논란, 브랜드 -10'}]},
+   ]},
+  {id:'D03',name:'인플루언서의 협찬 요구',desc:'구독자 500만 인플루언서가 협찬을 요청했습니다.',
+   choices:[
+     {label:'수락 (1천만)',probs:[{p:.60,effect:'demandMul',v:0.30,msg:'🚀 수요 폭발 +30%!'},{p:.40,effect:'brand',v:-20,msg:'💥 뒷광고 논란, 브랜드 -20'}]},
+     {label:'거절',probs:[{p:.80,effect:'none',v:0,msg:'😊 깔끔하게 마무리'},{p:.20,effect:'share',v:-0.10,msg:'😤 악의적 리뷰! 점유율 -10%'}]},
+   ]},
+  {id:'D04',name:'경쟁사 공장 화재',desc:'라이벌 공장에 화재가 발생했습니다.',
+   choices:[
+     {label:'위로금 전달',probs:[{p:.90,effect:'brand',v:10,msg:'🤝 신뢰도 상승! 브랜드 +10'},{p:.10,effect:'brand',v:-20,msg:'😱 위장술로 밝혀져 조롱, 브랜드 -20'}]},
+     {label:'공격적 마케팅',probs:[{p:.60,effect:'share',v:0.08,msg:'📈 점유율 +8%'},{p:.40,effect:'brand',v:-25,msg:'⚡ 상도덕 논란, 브랜드 -25'}]},
+     {label:'우리 공장 점검',probs:[{p:1.0,effect:'safety',v:1,msg:'🔒 안전관리 강화! 산재위험 -5%'}]},
+   ]},
+  {id:'D05',name:'사장의 새벽 감성글',desc:'야심 새벽 SNS 감성글이 화제입니다.',
+   choices:[
+     {label:'그대로 둔다',probs:[{p:.70,effect:'demandMul',v:0.10,msg:'😂 밈화 성공! 수요 +10%'},{p:.30,effect:'capital',v:-30000000,msg:'📉 주가 폭락! -3천만'}]},
+     {label:'급히 삭제',probs:[{p:1.0,effect:'capital',v:-1000000,msg:'🗑️ 기사 삭제 로비비 -100만'}]},
+   ]},
+  {id:'D06',name:'길 잃은 강아지 임시 보호',desc:'사무실 앞에 길 잃은 강아지가 나타났습니다.',
+   choices:[
+     {label:'마스코트 채용',probs:[{p:.50,effect:'capital',v:30000000,msg:'🐶 굿즈 대박! +3천만'},{p:.50,effect:'capital',v:-100000000,msg:'🏥 개 물림 사고! 벌금 -1억'}]},
+     {label:'주인 찾아줌',probs:[{p:.80,effect:'capital',v:3000000,msg:'💝 사례금 +300만'},{p:.20,effect:'interest',v:-0.02,msg:'🏦 주인이 대기업 회장! 금리 -2%p'}]},
+   ]},
+  {id:'D07',name:'신제품 네이밍 공모전',desc:'네티즌 투표 1위는 "파맛 폰"입니다.',
+   choices:[
+     {label:'파맛 폰 채택',probs:[{p:.30,effect:'brand',v:30,msg:'🌊 컬트적 인기! 브랜드 +30'},{p:.70,effect:'capital',v:-20000000,msg:'📦 재고 폐기 -2천만'}]},
+     {label:'무난한 이름',probs:[{p:1.0,effect:'brand',v:5,msg:'✅ 브랜드 +5'}]},
+   ]},
+  {id:'D08',name:'세무조사 예고',desc:'국세청으로부터 세무조사 예고장이 도착했습니다.',
+   choices:[
+     {label:'로펌 고용 (5천)',probs:[{p:.90,effect:'capital',v:-50000000,msg:'✅ 무사 통과 -5천만'},{p:.10,effect:'capital',v:-100000000,msg:'⚖️ 괘씸죄 과징금 -1억'}]},
+     {label:'정면 돌파',probs:[{p:.50,effect:'brand',v:10,msg:'🏆 모범납세자! 브랜드 +10'},{p:.50,effect:'halfAssets',v:0,msg:'💸 탈세 적발! 현금 반토막'}]},
+   ]},
+  {id:'D09',name:'사무실 에어컨 고장',desc:'폭염 중 에어컨이 고장났습니다.',
+   choices:[
+     {label:'최고급 교체 (1천)',probs:[{p:1.0,effect:'capital',v:-10000000,msg:'❄️ 교육 효율 보너스! -1천만'}]},
+     {label:'선풍기로 버티기',probs:[{p:.80,effect:'none',v:0,msg:'😅 버텼습니다!'},{p:.20,effect:'shutdown',v:1,msg:'🤒 집단 퇴사! 1턴 HR 정지'}]},
+   ]},
+  {id:'D10',name:'환경단체의 시위',desc:'환경단체가 본사 앞에서 시위를 시작했습니다.',
+   choices:[
+     {label:'친환경 패키지 (원가+10%)',probs:[{p:1.0,effect:'brand',v:15,msg:'🌿 친환경 이미지! 브랜드 +15'}]},
+     {label:'경찰 고발',probs:[{p:.60,effect:'none',v:0,msg:'👮 시위 진압 완료'},{p:.40,effect:'brand',v:-20,msg:'🔥 불매운동 확산! 브랜드 -20'}]},
+   ]},
+  {id:'D11',name:'외계인 납치 썰 유포',desc:'SNS에 사장이 외계인에게 납치됐다는 글이 퍼지고 있습니다.',
+   choices:[
+     {label:'마케팅에 활용',probs:[{p:.20,effect:'demandMul',v:1.0,msg:'🛸 일론 머스크 샤라웃! 수요 2배'},{p:.80,effect:'brand',v:-15,msg:'🤡 사이비 취급, 브랜드 -15'}]},
+     {label:'공식 부인',probs:[{p:1.0,effect:'none',v:0,msg:'😐 공식 입장 발표, 별 영향 없음'}]},
+   ]},
+  {id:'D12',name:'사내 연애 발각',desc:'마케팅팀 직원의 사내 연애가 발각됐습니다.',
+   choices:[
+     {label:'축의금 지원',probs:[{p:.70,effect:'resist',v:-0.03,msg:'💑 사내 분위기 향상! 저항성 -3%'},{p:.30,effect:'brand',v:-8,msg:'😤 사내 파벌 싸움, 브랜드 -8'}]},
+     {label:'부서 분리',probs:[{p:1.0,effect:'costMul',v:0.10,msg:'📉 업무 효율 저하, 운영비 +10%'}]},
+   ]},
+  {id:'D13',name:'오픈소스 라이선스 위반 경고',desc:'법무팀에서 오픈소스 위반 경고가 왔습니다.',
+   choices:[
+     {label:'코드 전면 수정',probs:[{p:1.0,effect:'shutdown',v:1,msg:'🔧 1턴 정지, 합법화 완료'}]},
+     {label:'무시',probs:[{p:.70,effect:'none',v:0,msg:'😏 아무 일도 없었습니다'},{p:.30,effect:'netWorthPct',v:-0.30,msg:'⚖️ 소송 패소! 순자산 -30%'}]},
+   ]},
+  {id:'D14',name:'경쟁사 대표와 우연히 조우',desc:'단골 식당에서 라이벌 대표와 마주쳤습니다.',
+   choices:[
+     {label:'계산해주기',probs:[{p:.50,effect:'rivalWeaken',v:0.05,msg:'🤝 라이벌 감동! 공격성 약화'},{p:.50,effect:'share',v:-0.05,msg:'😤 조롱으로 받아들여 경쟁 심화'}]},
+     {label:'몰래 사진 유포',probs:[{p:.20,effect:'rivalWeaken',v:0.10,msg:'📸 경쟁사 이미지 타격!'},{p:.80,effect:'capital',v:-20000000,msg:'⚖️ 명예훼손 고소! -2천만'}]},
+   ]},
+  {id:'D15',name:'창고의 정체불명 버섯',desc:'창고 구석에서 정체불명의 버섯이 발견됐습니다.',
+   choices:[
+     {label:'즉시 폐기',probs:[{p:1.0,effect:'capital',v:-1000000,msg:'🗑️ 폐기 처리비 -100만'}]},
+     {label:'신약 개발에 투자',probs:[{p:.10,effect:'capital',v:1000000000,msg:'💊 기적의 영약! +10억'},{p:.90,effect:'capital',v:-50000000,msg:'🔬 단순 곰팡이, 연구비 -5천만'}]},
+   ]},
+  {id:'D16',name:'경쟁사 신제품 출시 루머',desc:'라이벌이 혁신 신제품을 준비 중이라는 소문이 돕니다.',
+   choices:[
+     {label:'R&D 선제 투자 (2천)',probs:[{p:.70,effect:'quality',v:20,msg:'🔬 품질 점수 +20!'},{p:.30,effect:'capital',v:-20000000,msg:'📉 루머에 불과, -2천만'}]},
+     {label:'관망',probs:[{p:.60,effect:'none',v:0,msg:'😐 루머가 잠잠해졌습니다'},{p:.40,effect:'share',v:-0.05,msg:'📉 신제품 출시, 점유율 -5%'}]},
+   ]},
+  {id:'D17',name:'원자재 선물 계약 기회',desc:'원자재 가격 급등 전 선물 계약 기회입니다.',
+   choices:[
+     {label:'계약 체결 (5천)',probs:[{p:.65,effect:'costMul',v:-0.15,msg:'📦 원가 -15% 확보!'},{p:.35,effect:'capital',v:-50000000,msg:'📉 가격 하락, 손실 -5천만'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 별 변화 없습니다'}]},
+   ]},
+  {id:'D18',name:'정부 스타트업 지원금',desc:'중소기업 혁신 지원금 신청 기간이 시작됐습니다.',
+   choices:[
+     {label:'신청',probs:[{p:.60,effect:'capital',v:50000000,msg:'🏆 5천만 지원금 선정!'},{p:.40,effect:'none',v:0,msg:'📄 서류 탈락, 아쉽습니다'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 기회는 다음 번에'}]},
+   ]},
+  {id:'D19',name:'환율 급변동',desc:'원/달러 환율이 급격히 변동하고 있습니다.',
+   choices:[
+     {label:'외화 자산 매수',probs:[{p:.55,effect:'capital',v:30000000,msg:'💱 환차익 +3천만!'},{p:.45,effect:'capital',v:-25000000,msg:'📉 환차손 -2.5천만'}]},
+     {label:'현금 보유',probs:[{p:1.0,effect:'none',v:0,msg:'😐 안정적으로 유지했습니다'}]},
+   ]},
+  {id:'D20',name:'은행 특별 저금리 프로모션',desc:'거래 은행이 한시적 저금리 대출을 제안했습니다.',
+   choices:[
+     {label:'3억 대출',probs:[{p:.85,effect:'specialLoan',v:300000000,msg:'🏦 3억 우대 금리 대출 완료!'},{p:.15,effect:'none',v:0,msg:'😔 한도 초과로 거절'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 현재 재무 상황 유지'}]},
+   ]},
+  {id:'D21',name:'경기 침체 조짐',desc:'경제 연구소들이 불황 진입을 경고합니다.',
+   choices:[
+     {label:'재고 선제 확충',probs:[{p:.60,effect:'demandMul',v:0.15,msg:'📦 수요 대응 +15%'},{p:.40,effect:'costMul',v:0.10,msg:'📦 과잉 재고, 운영비 +10%'}]},
+     {label:'비용 절감',probs:[{p:.75,effect:'costMul',v:-0.10,msg:'✂️ 운영비 -10%'},{p:.25,effect:'brand',v:-10,msg:'😤 직원 불만 폭발! 브랜드 -10'}]},
+   ]},
+  {id:'D22',name:'대형 고객사 이탈 위기',desc:'매출 30% 고객사가 이탈 의사를 밝혔습니다.',
+   choices:[
+     {label:'가격 할인',probs:[{p:.70,effect:'share',v:0.05,msg:'🤝 계약 유지! 점유율 +5%'},{p:.30,effect:'brand',v:-5,msg:'😔 이탈, 브랜드 소폭 하락'}]},
+     {label:'신규 고객 유치',probs:[{p:.55,effect:'share',v:0.08,msg:'🌟 신규 확보! 점유율 +8%'},{p:.45,effect:'none',v:0,msg:'😐 유치 실패'}]},
+   ]},
+  {id:'D23',name:'부동산 급매물',desc:'사옥 근처 빌딩이 시세 60%로 급매물로 나왔습니다.',
+   choices:[
+     {label:'즉시 매입 (2억)',probs:[{p:.70,effect:'capital',v:100000000,msg:'🏢 6개월 후 차익 +1억'},{p:.30,effect:'capital',v:-200000000,msg:'😱 하자 발견! 손실 -2억'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 기회를 보류했습니다'}]},
+   ]},
+  {id:'D24',name:'핵심 인재 이직 제안',desc:'경쟁사가 핵심 임원에게 연봉 2배를 제안했습니다.',
+   choices:[
+     {label:'연봉 인상 (월 1천)',probs:[{p:.80,effect:'capital',v:-10000000,msg:'💼 인재 유지 -1천만'},{p:.20,effect:'brand',v:-5,msg:'😔 그래도 이직'}]},
+     {label:'보내준다',probs:[{p:.60,effect:'none',v:0,msg:'😐 새 인재 발굴 예정'},{p:.40,effect:'costMul',v:0.08,msg:'📉 업무 공백! 운영비 +8%'}]},
+   ]},
+  {id:'D25',name:'해외 진출 타진',desc:'동남아 파트너사로부터 합작 제안이 왔습니다.',
+   choices:[
+     {label:'MOU 체결 (3천)',probs:[{p:.55,effect:'demandMul',v:0.25,msg:'🌏 해외 수요 +25%!'},{p:.45,effect:'capital',v:-30000000,msg:'🌏 문화 차이로 실패 -3천만'}]},
+     {label:'검토 보류',probs:[{p:1.0,effect:'none',v:0,msg:'😐 다음 기회를 노리겠습니다'}]},
+   ]},
+  {id:'D26',name:'원가 절감 컨설팅',desc:'유명 컨설팅사가 원가 절감 25%를 보장합니다.',
+   choices:[
+     {label:'계약 (1억)',probs:[{p:.65,effect:'costMul',v:-0.20,msg:'✅ 원가 -20%!'},{p:.35,effect:'capital',v:-100000000,msg:'😤 컨설팅 효과 없음 -1억'}]},
+     {label:'자체 해결',probs:[{p:.50,effect:'costMul',v:-0.08,msg:'💪 자체 개선! 원가 -8%'},{p:.50,effect:'none',v:0,msg:'😐 현상 유지'}]},
+   ]},
+  {id:'D27',name:'경쟁사 핵심 특허 만료',desc:'라이벌의 핵심 특허가 이번 달 만료됩니다.',
+   choices:[
+     {label:'기술 즉시 도입 (5천)',probs:[{p:.80,effect:'quality',v:30,msg:'⚡ 품질 점수 +30!'},{p:.20,effect:'none',v:0,msg:'😐 기술 도입이 예상보다 어렵습니다'}]},
+     {label:'관망',probs:[{p:1.0,effect:'none',v:0,msg:'😐 경쟁사도 대응했습니다'}]},
+   ]},
+  {id:'D28',name:'자연재해 예보',desc:'태풍이 물류 핵심 항만을 직격할 예정입니다.',
+   choices:[
+     {label:'선제 재고 확보 (3천)',probs:[{p:.75,effect:'none',v:0,msg:'📦 차질 없이 운영'},{p:.25,effect:'capital',v:-30000000,msg:'😔 태풍 경로 변경, 재고비 낭비'}]},
+     {label:'운에 맡긴다',probs:[{p:.55,effect:'none',v:0,msg:'😅 태풍이 빗나갔습니다!'},{p:.45,effect:'demandMul',v:-0.30,msg:'🌊 물류 대란! 수요 -30%'}]},
+   ]},
+  {id:'D29',name:'대규모 채용 박람회',desc:'지역 최대 채용 박람회 참가 기회입니다.',
+   choices:[
+     {label:'참가 (1천)',probs:[{p:.70,effect:'brand',v:12,msg:'🌟 우수 인재 이미지! 브랜드 +12'},{p:.30,effect:'capital',v:-10000000,msg:'😐 지원자 0명'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 인력 상황 유지'}]},
+   ]},
+  {id:'D30',name:'경쟁사 가격 덤핑',desc:'라이벌이 원가 이하 판매를 시작했습니다.',
+   choices:[
+     {label:'맞대응 가격 인하',probs:[{p:.60,effect:'share',v:0.07,msg:'📊 점유율 방어 +7%!'},{p:.40,effect:'brand',v:-12,msg:'💥 출혈 경쟁, 브랜드 -12'}]},
+     {label:'프리미엄 전략',probs:[{p:.55,effect:'brand',v:15,msg:'👑 프리미엄 포지셔닝! 브랜드 +15'},{p:.45,effect:'share',v:-0.05,msg:'📉 가격 민감 고객 이탈 -5%'}]},
+   ]},
+  {id:'D31',name:'바이럴 영상 사고',desc:'직원이 업무 중 찍힌 영상이 SNS에서 바이럴됐습니다.',
+   choices:[
+     {label:'공식 사과문',probs:[{p:.70,effect:'brand',v:-5,msg:'😅 상황 수습 브랜드 -5'},{p:.30,effect:'brand',v:15,msg:'🎉 역으로 친근한 이미지! +15'}]},
+     {label:'모른척',probs:[{p:.50,effect:'none',v:0,msg:'😐 영상이 잊혀졌습니다'},{p:.50,effect:'brand',v:-20,msg:'😱 더 크게 퍼짐! 브랜드 -20'}]},
+   ]},
+  {id:'D32',name:'해킹 랜섬웨어 공격',desc:'회사 시스템이 랜섬웨어에 감염됐습니다.',
+   choices:[
+     {label:'몸값 지불 (5천)',probs:[{p:.70,effect:'capital',v:-50000000,msg:'🔓 시스템 복구 -5천만'},{p:.30,effect:'shutdown',v:1,msg:'😤 먹튀! 추가 1턴 정지'}]},
+     {label:'자체 복구',probs:[{p:.50,effect:'shutdown',v:1,msg:'🔧 1턴 정지 후 복구'},{p:.50,effect:'shutdown',v:2,msg:'💀 복구 실패! 2턴 정지'}]},
+   ]},
+  {id:'D33',name:'임직원 음주운전 사고',desc:'임원이 음주 운전 사고를 일으켰습니다.',
+   choices:[
+     {label:'즉시 해고 + 사과',probs:[{p:.85,effect:'brand',v:-10,msg:'😢 이미지 타격 -10'},{p:.15,effect:'brand',v:5,msg:'😊 단호한 대처, 신뢰도 회복'}]},
+     {label:'쉬쉬 처리 (2천)',probs:[{p:.60,effect:'capital',v:-20000000,msg:'🤫 은폐 처리 -2천만'},{p:.40,effect:'brand',v:-35,msg:'💥 내부 고발! 브랜드 -35'}]},
+   ]},
+  {id:'D34',name:'폭염으로 인한 전력난',desc:'폭염으로 지역 전력이 부족해 공장 가동이 위협받습니다.',
+   choices:[
+     {label:'비상 발전기 임대 (1천)',probs:[{p:1.0,effect:'capital',v:-10000000,msg:'⚡ 안전하게 운영 -1천만'}]},
+     {label:'절전 모드',probs:[{p:.70,effect:'demandMul',v:-0.10,msg:'📉 생산량 감소, 수요 -10%'},{p:.30,effect:'none',v:0,msg:'😊 전력난을 피했습니다'}]},
+   ]},
+  {id:'D35',name:'전직 직원 내부 고발 위협',desc:'전직 직원이 회사 비리를 제보하겠다고 연락해 왔습니다.',
+   choices:[
+     {label:'합의 (3천)',probs:[{p:.80,effect:'capital',v:-30000000,msg:'🤝 합의 완료 -3천만'},{p:.20,effect:'brand',v:-30,msg:'💥 합의 결렬! 폭로 기사, 브랜드 -30'}]},
+     {label:'무시',probs:[{p:.65,effect:'none',v:0,msg:'😐 제보자가 포기했습니다'},{p:.35,effect:'brand',v:-25,msg:'📰 폭로 기사 게재! 브랜드 -25'}]},
+   ]},
+  {id:'D36',name:'연예인의 자발적 언급',desc:'유명 연예인이 방송에서 자사 제품을 자발적으로 언급했습니다.',
+   choices:[
+     {label:'즉시 협찬 계약 (5천)',probs:[{p:.75,effect:'demandMul',v:0.20,msg:'🌟 팬덤 소비! 수요 +20%'},{p:.25,effect:'brand',v:15,msg:'✨ 브랜드 이미지 +15'}]},
+     {label:'자연스럽게 두기',probs:[{p:.60,effect:'brand',v:10,msg:'💝 자연스러운 홍보! +10'},{p:.40,effect:'none',v:0,msg:'😐 화제가 식었습니다'}]},
+   ]},
+  {id:'D37',name:'폐업 경쟁사 자산 경매',desc:'파산한 경쟁사의 설비와 브랜드가 경매에 나왔습니다.',
+   choices:[
+     {label:'적극 입찰 (1억)',probs:[{p:.60,effect:'quality',v:25,msg:'🏭 설비 인수! 품질 +25'},{p:.40,effect:'capital',v:-100000000,msg:'😤 고가 낙찰, 비용 손실 -1억'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 라이벌이 인수했습니다'}]},
+   ]},
+  {id:'D38',name:'소비자 단체 우수기업 선정',desc:'소비자 단체가 자사를 이달의 우수기업으로 추천했습니다.',
+   choices:[
+     {label:'적극 홍보 (1천)',probs:[{p:.85,effect:'brand',v:20,msg:'🏆 브랜드 +20!'},{p:.15,effect:'none',v:0,msg:'😐 홍보 효과 미미'}]},
+     {label:'조용히 수상',probs:[{p:1.0,effect:'brand',v:8,msg:'🏅 조용한 브랜드 상승 +8'}]},
+   ]},
+  {id:'D39',name:'직원 복지 투표',desc:'직원들이 복지 예산 사용처를 투표로 결정하길 원합니다.',
+   choices:[
+     {label:'자율 투표 (2천)',probs:[{p:.70,effect:'resist',v:-0.04,msg:'😊 만족도 상승! 저항성 -4%'},{p:.30,effect:'none',v:0,msg:'😐 별 효과 없음'}]},
+     {label:'경영진이 결정',probs:[{p:.55,effect:'costMul',v:-0.05,msg:'💡 효율적 집행! 운영비 -5%'},{p:.45,effect:'brand',v:-8,msg:'😤 직원 반발, 브랜드 -8'}]},
+   ]},
+  {id:'D40',name:'미래 먹거리 R&D',desc:'신기술 연구소에서 공동 연구를 제안해 왔습니다.',
+   choices:[
+     {label:'공동 연구 (5천)',probs:[{p:.55,effect:'quality',v:35,msg:'🔬 기술 혁신! 품질 +35'},{p:.45,effect:'capital',v:-50000000,msg:'😔 연구 실패 -5천만'}]},
+     {label:'패스',probs:[{p:1.0,effect:'none',v:0,msg:'😐 현재 역량에 집중합니다'}]},
+   ]},
+  {id:'D41',name:'고객 데이터 유출 사고',desc:'해킹으로 고객 개인정보가 유출된 정황이 확인됐습니다.',
+   choices:[
+     {label:'즉시 공개 + 보상 (3천)',probs:[{p:.80,effect:'brand',v:-8,msg:'😢 신뢰 회복 노력 브랜드 -8'},{p:.20,effect:'brand',v:5,msg:'💙 투명한 대처로 소폭 회복'}]},
+     {label:'조용히 처리 (5천)',probs:[{p:.60,effect:'capital',v:-50000000,msg:'🤫 조용히 마무리 -5천만'},{p:.40,effect:'brand',v:-40,msg:'💥 피해자 고발! 브랜드 -40'}]},
+   ]},
+  {id:'D42',name:'지역 축제 협찬 요청',desc:'인근 지역 축제 위원회에서 협찬을 요청했습니다.',
+   choices:[
+     {label:'메인 협찬 (2천)',probs:[{p:.75,effect:'brand',v:18,msg:'🎉 지역 이미지 상승! 브랜드 +18'},{p:.25,effect:'none',v:0,msg:'😐 홍보 효과 없음'}]},
+     {label:'소액 협찬 (5백)',probs:[{p:1.0,effect:'brand',v:5,msg:'🎪 소소한 브랜드 +5'}]},
+   ]},
+  {id:'D43',name:'업계 권위자의 공개 비판',desc:'유명 경제학자가 방송에서 자사 사업 모델을 공개 비판했습니다.',
+   choices:[
+     {label:'공개 반박',probs:[{p:.50,effect:'brand',v:10,msg:'💪 논쟁 승리! 브랜드 +10'},{p:.50,effect:'brand',v:-15,msg:'😤 논리 패배, 브랜드 -15'}]},
+     {label:'침묵 & 개선',probs:[{p:.75,effect:'quality',v:10,msg:'🔧 품질 개선! +10'},{p:.25,effect:'share',v:-0.03,msg:'😔 인정으로 받아들여짐 -3%'}]},
+   ]},
+  {id:'D44',name:'전직원 워크숍 제안',desc:'HR팀이 팀빌딩 워크숍을 제안했습니다.',
+   choices:[
+     {label:'1박 2일 (3천)',probs:[{p:.80,effect:'resist',v:-0.05,msg:'🏕️ 팀워크 상승! 저항성 -5%'},{p:.20,effect:'brand',v:-5,msg:'😅 사고 발생, 브랜드 -5'}]},
+     {label:'온라인 간소화',probs:[{p:1.0,effect:'costMul',v:-0.03,msg:'💻 비용 절감 +3%'}]},
+   ]},
+  {id:'D45',name:'라이벌의 적대적 홍보',desc:'경쟁사가 자사를 겨냥한 비교 광고를 집행합니다.',
+   choices:[
+     {label:'맞불 광고 (2천)',probs:[{p:.65,effect:'brand',v:12,msg:'⚔️ 광고 전쟁 승리! 브랜드 +12'},{p:.35,effect:'capital',v:-20000000,msg:'😤 광고 전쟁 패배 -2천만'}]},
+     {label:'품질로 승부',probs:[{p:.70,effect:'quality',v:15,msg:'🔬 품질 개선! +15'},{p:.30,effect:'share',v:-0.04,msg:'📉 단기 이미지 타격 -4%'}]},
+   ]},
+];
+
+// ════════════════════════════════════════════════════════
+//  Step 5-E: 결재 서류 생성 & 렌더링
+// ════════════════════════════════════════════════════════
+let _currentDocCards=[];
+function generateDocCards(){
+  const s = gameState;
+  // I-05: 현재 상황 기반 가중치 필터링
+  const weighted = docEvents.map(ev => {
+    let w = 1;
+    const id = ev.id;
+    // 공장 관련 이벤트 — 공장 있을 때 가중치 증가
+    if (['D04','D09','D34'].includes(id) && s.factory?.built)  w = 3;
+    // 재무 위기 이벤트 — 부채 많을 때 가중치 증가
+    if (['D08','D13','D20'].includes(id) && s.debt > 50_000_000) w = 3;
+    // 브랜드/마케팅 이벤트 — 브랜드 높을 때 가중치 증가
+    if (['D03','D07','D36','D38'].includes(id) && s.brandValue > 30) w = 2;
+    // 경쟁 관련 — 라이벌 있을 때 가중치 증가
+    if (['D14','D30','D45'].includes(id) && s.rivals?.some(r=>!r.bankrupt)) w = 2;
+    // 불황기 이벤트
+    if (['D21','D22','D28'].includes(id) && s.economy?.phase === 'recession') w = 3;
+    return { ev, w };
+  });
+  // 가중치 추첨으로 3장 선택 (중복 없이)
+  const selected = [];
+  const pool     = [...weighted];
+  for (let i = 0; i < 3 && pool.length > 0; i++) {
+    const total = pool.reduce((s, x) => s + x.w, 0);
+    let r = Math.random() * total, acc = 0;
+    for (let j = 0; j < pool.length; j++) {
+      acc += pool[j].w;
+      if (r <= acc) { selected.push(pool[j].ev); pool.splice(j,1); break; }
+    }
+  }
+  _currentDocCards = selected.length === 3 ? selected
+    : [...docEvents].sort(()=>Math.random()-.5).slice(0,3);
+}
+function renderDocCards(enabled=true){
+  const area=document.getElementById('doc-cards');
+  if(!area) return;
+  if(!_currentDocCards.length){
+    area.innerHTML='<div style="color:var(--dim);font-size:10px;padding:5px 0;">도매업체 선택 후 가격 설정 시 생성됩니다.</div>';
+    return;
+  }
+  const icons=['📄','📋','📝'];
+  area.innerHTML=_currentDocCards.map((ev,i)=>`
+    <button class="doc-card" data-doc-idx="${i}" ${!enabled?'disabled':''}>
+      <span class="doc-card-label">${icons[i]} 결재 ${i+1}</span>
+      <span class="doc-card-title">${ev.name}</span>
+      <span class="doc-card-prob">${ev.choices.length}가지 선택</span>
+      <span class="doc-card-prob">${ev.desc.slice(0,28)}…</span>
+    </button>`).join('');
+  area.querySelectorAll('[data-doc-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>onDocCardClick(parseInt(btn.dataset.docIdx)));
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-F: 카드 클릭 → 선택 → 결과
+// ════════════════════════════════════════════════════════
+function onDocCardClick(idx){
+  const ev=_currentDocCards[idx]; if(!ev) return;
+  const choiceHTML=ev.choices.map((ch,ci)=>`
+    <button class="m2-btn m2-btn-blue" data-choice="${ci}"
+      style="margin-top:6px;font-size:12px;text-align:left;padding:10px 12px;border-radius:7px;">
+      <strong>[${ci+1}] ${ch.label}</strong>
+      <span style="display:block;font-size:10px;opacity:.7;margin-top:2px;">
+        ${ch.probs.map(p=>(p.p*100).toFixed(0)+'%').join('/')} 확률
+      </span>
+    </button>`).join('');
+  openModal2(`
+    <div class="modal-head">
+      <span class="modal-title">📋 ${ev.name}</span>
+      <button class="modal-close m2-close">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.6;">${ev.desc}</div>
+    ${choiceHTML}`);
+  document.querySelectorAll('[data-choice]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const ci=parseInt(btn.dataset.choice);
+      const choice=ev.choices[ci];
+      closeModal2();
+      resolveDocChoice(ev,choice);
+    });
+  });
+}
+
+function resolveDocChoice(ev,choice){
+  const r=Math.random(); let acc=0;
+  let outcome=choice.probs[choice.probs.length-1];
+  for(const prob of choice.probs){ acc+=prob.p; if(r<acc){outcome=prob;break;} }
+  applyDocEffect(outcome);
+  showDocResult(ev.name, outcome.msg, ()=>triggerNextTurn());
+}
+
+function applyDocEffect(outcome){
+  const s=gameState;
+  switch(outcome.effect){
+    case 'brand':       s.brandValue=Math.max(0,Math.min(1000,s.brandValue+outcome.v)); break;
+    case 'capital':     s.capital+=outcome.v; break;
+    case 'resist':      s.priceResistance=Math.max(0,Math.min(0.5,s.priceResistance+outcome.v)); break;
+    case 'share':       s.marketShare=Math.max(0,Math.min(1,s.marketShare+outcome.v)); break;
+    case 'demandMul':   s._docDemandMul=(s._docDemandMul||0)+outcome.v; break;
+    case 'quality':     if(s.selectedVendor)s.selectedVendor.qualityScore=Math.max(0,(s.selectedVendor.qualityScore||100)+outcome.v); break;
+    case 'costMul':     s.mna.opCostMultiplier=Math.min(3,Math.max(0.1,(s.mna.opCostMultiplier||1)+outcome.v)); break;
+    case 'shutdown':    s._shutdownLeft=Math.max(s._shutdownLeft||0,Math.ceil(outcome.v)); break;
+    case 'interest':    s.interestRate=Math.max(0.005,s.interestRate+outcome.v); break;
+    case 'safety':      s.factory.accidentRisk=Math.max(0,(s.factory.accidentRisk||0)-0.05); break;
+    case 'halfAssets':  s.capital=Math.round(s.capital*0.5); break;
+    case 'netWorthPct': { const nw=s.capital+s.propertyValue-s.debt; s.capital+=Math.round(nw*outcome.v); break; }
+    case 'rivalWeaken': s.rivals.forEach(rv=>{if(!rv.bankrupt)rv.priceResistance=Math.max(0,(rv.priceResistance||0)-(outcome.v||0.05));}); break;
+    case 'specialLoan': s.capital+=outcome.v; s.debt+=outcome.v; break;
+    case 'none': default: break;
+  }
+  gameState._lastDocResult = outcome.msg;  // B-09: 정산 리포트용
+  addLog('📋 결재: '+outcome.msg, outcome.effect==='shutdown'||outcome.v<0?'bad':'good');
+}
+
+function showDocResult(title,desc,onClose){
+  const ov=document.getElementById('doc-result-ov');
+  const iEl=document.getElementById('dr-icon');
+  const tEl=document.getElementById('dr-title');
+  const dEl=document.getElementById('dr-desc');
+  const bEl=document.getElementById('dr-bar');
+  if(!ov){onClose?.();return;}
+  const isGood=!desc.includes('−')&&(!desc.includes('-')||desc.startsWith('🤝')||desc.startsWith('😊'));
+  if(iEl) iEl.textContent=isGood?'✅':'⚠️';
+  if(tEl) tEl.textContent=title;
+  if(dEl) dEl.textContent=desc;
+  ov.classList.remove('hidden'); ov.style.display='';
+  if(bEl){bEl.style.animation='none';bEl.offsetHeight;bEl.style.animation='';}
+  setTimeout(()=>{ov.classList.add('hidden');ov.style.display='none';onClose?.();},1500);
+}
+
+function triggerNextTurn(){
+  // 결재 카드 비활성화 (중복 진행 방지)
+  renderDocCards(false);
+  const btn=document.getElementById('next-btn');
+  if(btn&&!btn.disabled){
+    btn.click();
+  } else {
+    // next-btn이 disabled 상태면 직접 runTurn
+    runTurn();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-G: 결재 카드 표시 조건 제어
+// ════════════════════════════════════════════════════════
+function updateDocSection(){
+  const ready=!!gameState.selectedVendor&&gameState.sellPrice>0;
+  if(ready&&!_currentDocCards.length) generateDocCards();
+  renderDocCards(ready);
+}
+
+// ════════════════════════════════════════════════════════
+//  Step 5-H: UI 통합 후처리 (재귀 없이)
+// ════════════════════════════════════════════════════════
+function step5PostUI(){
+  updateTimeline();
+  updateHQVisual();
+  renderPieChart();
+  updateDocSection();
+}
+
+// 가격 입력 후 결재 카드 업데이트
+['price-slider','price-input'].forEach(id=>{
+  document.getElementById(id)?.addEventListener('input',()=>step5PostUI());
+});
+
+// 난이도 선택 후 초기화
+document.querySelectorAll('.diff-card').forEach(card=>{
+  card.addEventListener('click',()=>setTimeout(()=>step5PostUI(),120));
+});
+
+// runTurn 후처리: 결재 카드 재생성 + 시각 갱신
+// runTurn은 async이므로 직접 패치 (재선언 금지 — 래핑만)
+// (wrapRunTurnForStep5 제거 — B-04)
+
+// 초기 렌더
+setTimeout(()=>step5PostUI(), 0);
+
+// I-03: turn-bar 숨김은 CSS로 처리됨
+
+gameState.wholesaleOptions = [];
+
+// ── 초기 렌더 (난이도 화면 표시 상태) ───────────────
+// 레이아웃은 hidden이므로 updateUI 불필요 — 난이도 선택 후 실행
+</script>
+
+<!-- ════ Step 3 HTML ═══════════════════════════════════ -->
+<!-- 모달2 컨테이너 (금융/부동산/M&A/업적 공용) -->
+<div id="modal2-ov" class="modal2-ov hidden">
+  <div class="modal2-box" id="modal2-box"></div>
+</div>
+
+<!-- 스토리 팝업 -->
+<div id="story-ov" class="story-ov hidden">
+  <div class="story-box">
+    <div id="story-act" class="story-act">막</div>
+    <div id="story-title" class="story-title">제목</div>
+    <div id="story-body" class="story-body"></div>
+    <button id="story-cont" class="story-cont">계속 →</button>
+  </div>
+</div>
+
+<!-- 블랙 스완 -->
+<div id="swan-ov" class="swan-ov hidden"></div>
+
+<!-- 게임 오버 / 클리어 -->
+<div id="go-ov" class="go-ov hidden"></div>
+
+<!-- ════ Step 4-2: 뉴스 속보 모달 ════════════════════ -->
+<div id="news-ov" class="news-ov hidden">
+  <div class="news-box" id="news-box"></div>
+</div>
+</body>
+</html>
