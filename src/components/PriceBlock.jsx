@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
-import { calcBEP } from '../calculations.js';
+import { calcBEP, calcMktAwarenessGain, calcMktBrandGain } from '../calculations.js';
+import { C } from '../constants.js';
 import { fmtW, sign } from '../utils.js';
 
 export default function PriceBlock() {
@@ -14,6 +15,7 @@ export default function PriceBlock() {
   const mna            = useGameStore(s => s.mna);
   const economy        = useGameStore(s => s.economy);
   const monthlyFixedCost = useGameStore(s => s.monthlyFixedCost);
+  const capital = useGameStore(s => s.capital);
 
   const storeState = { factory, debt, interestRate, realty, mna, economy, monthlyFixedCost, selectedVendor, sellPrice };
   const bep = selectedVendor ? calcBEP(storeState) : null;
@@ -28,6 +30,14 @@ export default function PriceBlock() {
     { label: '표준형', mult: 1.5, color: 'var(--blue)'  },
     { label: '프리미엄', mult: 2.5, color: 'var(--yellow)' },
   ];
+
+  const mktRefBudget = 10_000_000;
+  const rdRefBudget = C.FACTORY_UPGRADE_COST;
+  const mktBrandGain = calcMktBrandGain(mktRefBudget);
+  const mktAwareGain = calcMktAwarenessGain(mktRefBudget);
+  const rdQualityGain = 20;
+  const canRd = capital >= rdRefBudget;
+  const canMkt = capital >= mktRefBudget;
 
   return (
     <div className="price-block">
@@ -110,6 +120,24 @@ export default function PriceBlock() {
               </div>
             </div>
           )}
+
+          <div className="opp-box">
+            <div className="opp-title">기회비용 비교 (의사결정 보조)</div>
+            <div className="opp-grid">
+              <div className={`opp-cell ${canMkt ? '' : 'opp-dim'}`}>
+                <div className="opp-name">단기 마케팅 {fmtW(mktRefBudget)}</div>
+                <div className="opp-line">브랜드 +{mktBrandGain.toFixed(1)}pt</div>
+                <div className="opp-line">인지도 +{(mktAwareGain * 100).toFixed(1)}%</div>
+                <div className="opp-note">포기 시: 단기 수요 부스팅 기회 상실</div>
+              </div>
+              <div className={`opp-cell ${canRd ? '' : 'opp-dim'}`}>
+                <div className="opp-name">R&D/설비 {fmtW(rdRefBudget)}</div>
+                <div className="opp-line">품질 +{rdQualityGain}pt (업그레이드 기준)</div>
+                <div className="opp-line">장기 경쟁력 개선</div>
+                <div className="opp-note">포기 시: 중장기 마진/점유율 개선 지연</div>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>

@@ -60,13 +60,14 @@ export default function LeftPanel() {
     brandValue: s.brandValue, priceResistance: s.priceResistance,
     marketShare: s.marketShare, marketing: s.marketing,
     mna: s.mna, realty: s.realty, interestRate: s.interestRate,
+    creditGrade: s.creditGrade, effectiveInterestRate: s.effectiveInterestRate,
     economy: s.economy, turn: s.turn, maxTurns: s.maxTurns,
     difficulty: s.difficulty, profitHistory: s.profitHistory,
     cumulativeProfit: s.cumulativeProfit,
   })));
 
   const nw    = netWorth(s);
-  const grade = calcCreditGrade(nw);
+  const grade = s.creditGrade || calcCreditGrade(nw);
   const gc    = CREDIT_GRADES[grade];
   const stage = HQ_STAGES.find(t => nw >= t.min) || HQ_STAGES[3];
   const turnPct = Math.min((s.turn / s.maxTurns) * 100, 100);
@@ -107,7 +108,7 @@ export default function LeftPanel() {
 
         <div className="grade-row">
           <span className={`grade-letter g${grade}`}>{grade}등급</span>
-          <div className="grade-detail">{gc.label} · {(gc.rate * 100).toFixed(1)}%</div>
+          <div className="grade-detail">{gc.label} · {(s.effectiveInterestRate * 100).toFixed(1)}%</div>
         </div>
 
         {/* Turn progress — always visible */}

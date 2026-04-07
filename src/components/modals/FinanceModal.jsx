@@ -9,7 +9,7 @@ export default function FinanceModal() {
   const debt        = useGameStore(s => s.debt);
   const borrow      = useGameStore(s => s.borrow);
   const repay       = useGameStore(s => s.repay);
-  const interestRate = useGameStore(s => s.interestRate);
+  const interestRate = useGameStore(s => s.effectiveInterestRate || s.interestRate);
   const addToast    = useGameStore(s => s.addToast);
 
   const [tab, setTab] = useState('borrow');

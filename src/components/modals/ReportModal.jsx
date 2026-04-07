@@ -79,6 +79,10 @@ export default function ReportModal() {
     sold = 0, demand = 0, revenue = 0, cogs = 0,
     totalFixed = 0, netProfit = 0,
     shareResult = {}, cartelFine = 0, accPenalty = 0,
+    corporateTax = 0, inventoryHoldingCost = 0, disposalPenalty = 0,
+    staleUnits = 0, inventoryUnits = 0, policyDelta = 0, policyTitle = '',
+    effectiveRate = 0, creditGrade = 'D',
+    deficitStreak = 0, deficitRatePenalty = 0,
     bsEffect = null,
   } = d;
 
@@ -124,6 +128,9 @@ export default function ReportModal() {
         <div className="report-sub-title">💸 비용</div>
         <MoneyRow label="매입 원가 (COGS)" amount={-cogs}       sub="red"  delay={D.cogs} />
         <MoneyRow label="고정 비용"        amount={-totalFixed} sub="red"  delay={D.fixed} />
+        {inventoryHoldingCost > 0 && <MoneyRow label="재고 보관비" amount={-inventoryHoldingCost} sub="red" delay={D.extra} />}
+        {disposalPenalty > 0 && <MoneyRow label="재고 폐기비" amount={-disposalPenalty} sub="red" delay={D.extra + 20} />}
+        {corporateTax > 0 && <MoneyRow label="법인세" amount={-corporateTax} sub="red" delay={D.extra + 40} />}
         {cartelFine > 0 && <MoneyRow label="카르텔 과징금" amount={-cartelFine} sub="red" delay={D.extra} />}
         {accPenalty > 0 && <MoneyRow label="산재 보상금"   amount={-accPenalty} sub="red" delay={D.extra + 40} />}
       </div>
@@ -146,6 +153,15 @@ export default function ReportModal() {
             {netProfit < 0 ? '-' : '+'}{fmtW(animNet)}
           </span>
         </div>
+      </div>
+
+      <div className="report-section">
+        <div className="report-sub-title">📌 정책 · 금융 · 재고</div>
+        <AnimRow label="정책 이벤트" value={policyTitle || '없음'} delay={D.op + 20} />
+        {policyTitle && <MoneyRow label="정책 영향" amount={policyDelta} sub={policyDelta >= 0 ? 'green' : 'red'} delay={D.op + 40} />}
+        <AnimRow label="대출 등급/금리" value={`${creditGrade} / ${(effectiveRate * 100).toFixed(1)}%`} delay={D.op + 60} />
+        <AnimRow label="연속 적자/가산" value={`${deficitStreak}턴 / +${(deficitRatePenalty * 100).toFixed(1)}%p`} delay={D.op + 70} />
+        <AnimRow label="잔여 재고" value={`${fmt(inventoryUnits)}개 (악성 ${fmt(staleUnits)}개)`} delay={D.op + 80} />
       </div>
 
       {bsEffect && (

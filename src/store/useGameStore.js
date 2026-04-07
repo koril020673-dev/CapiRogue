@@ -2,11 +2,12 @@ import { create } from 'zustand';
 import {
   C, EV, ECO_WEIGHTS, DIFF_CONFIG, DIFF_LABEL, STORIES,
   BLACK_SWANS, CREDIT_GRADES, REALTY_DATA, META_DEF, META_KEY,
+  ECO_PHASE_DURATION, TAX_BRACKETS, RIVAL_ARCHETYPES, POLICY_EVENTS,
   ADVISOR_AVATAR, ADVISOR_LABEL,
 } from '../constants.js';
 import {
   calculateMarketShare, advanceEconomy, calcTurnResult,
-  getActiveEffectModifier, calcMktBrandGain, calcMktAwarenessGain,
+  getActiveEffectModifier, calcMktBrandGain, calcMktAwarenessGain, getLoanRateByGrade,
 } from '../calculations.js';
 import { fetchWholesaleData, getOfflineVendors } from '../apiService.js';
 import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign, validateItemInput } from '../utils.js';
@@ -40,10 +41,16 @@ const INITIAL_GAME = () => ({
   realty: 'monthly',
   mna: { count: 0, opCostMultiplier: 1.0 },
   cartel: { active: false, bustedCount: 0 },
-  economy: { phase: 'stable' },
+  economy: { phase: 'stable', turnsLeft: ECO_PHASE_DURATION.stable },
   profitHistory: [],
   cumulativeProfit: 0,
   lastTurnResult: null,
+  inventoryUnits: 0,
+  inventoryLots: [],
+  creditGrade: 'D',
+  effectiveInterestRate: 0,
+  deficitStreak: 0,
+  deficitRatePenalty: 0,
   activeEffects: [],
   _storyShown: {},
   _docDemandMul: 0,
@@ -53,23 +60,48 @@ const INITIAL_GAME = () => ({
   _shutdownLeft: 0,
   _bsActive: null,
   _bsTurnsLeft: 0,
+  _bsRecoveryLeft: 0,
+  _bsRateShock: 0,
+  _bsTriggerChance: C.BLACK_SWAN_START_PROB,
   _boomBonus: 0,
 });
 
+function calcProgressiveTax(taxableIncome) {
+  if (taxableIncome <= 0) return 0;
+  let left = taxableIncome;
+  let prev = 0;
+  let tax = 0;
+  for (const b of TAX_BRACKETS) {
+    const width = b.upTo - prev;
+    const base = b.upTo === Infinity ? left : Math.min(left, width);
+    if (base <= 0) break;
+    tax += Math.round(base * b.rate);
+    left -= base;
+    prev = b.upTo;
+    if (left <= 0) break;
+  }
+  return tax;
+}
+
 function makeRivals(count) {
-  return Array.from({ length: count }, (_, i) => ({
-    name: ['라이벌 A','라이벌 B','라이벌 C','라이벌 D'][i],
-    capital: 20_000_000,
-    brandValue: Math.floor(Math.random() * 20),
-    priceResistance: 0.02,
-    marketShare: 0,
-    pattern: ['aggressive','premium','copycat'][i % 3],
-    sellPrice: 0,
-    qualityScore: 80 + Math.floor(Math.random() * 60),
-    bankrupt: false,
-    bankruptTurn: 0,
-    attraction: 0,
-  }));
+  const archetypes = ['lowcost', 'premium', 'innovation', 'efficient'];
+  return Array.from({ length: count }, (_, i) => {
+    const archetype = archetypes[i % archetypes.length];
+    return {
+      name: ['라이벌 A', '라이벌 B', '라이벌 C', '라이벌 D'][i],
+      capital: archetype === 'premium' ? 12_000_000 : 20_000_000,
+      brandValue: archetype === 'premium' ? 30 : Math.floor(Math.random() * 20),
+      priceResistance: archetype === 'premium' ? 0.03 : 0.02,
+      marketShare: 0,
+      archetype,
+      ...RIVAL_ARCHETYPES[archetype],
+      sellPrice: 0,
+      qualityScore: archetype === 'lowcost' ? 90 : 80 + Math.floor(Math.random() * 60),
+      bankrupt: false,
+      bankruptTurn: 0,
+      attraction: 0,
+    };
+  });
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -123,6 +155,9 @@ export const useGameStore = create((set, get) => ({
     const capBonus = Math.min(meta.capitalBonus || 0, C.META_CAPITAL_BONUS_MAX);
     const boomBonus = Math.min(meta.boomBonus || 0, C.META_BOOM_BONUS_MAX);
     const baseCapital = Math.round(cfg.capital * (1 + capBonus));
+    const initialNW = baseCapital + 10_000_000 - cfg.debt;
+    const initialGrade = calcCreditGrade(initialNW);
+    const initialEffectiveRate = getLoanRateByGrade(cfg.interestRate, initialGrade, 0);
 
     const initGame = INITIAL_GAME();
     set({
@@ -139,6 +174,8 @@ export const useGameStore = create((set, get) => ({
       capital: baseCapital,
       debt: cfg.debt,
       interestRate: cfg.interestRate,
+      creditGrade: initialGrade,
+      effectiveInterestRate: initialEffectiveRate,
       rivals: makeRivals(cfg.rivalCount),
       _boomBonus: boomBonus,
       logs: [{ turn: 0, msg: `게임 시작: ${DIFF_LABEL[diff]}`, type: 'info', id: Date.now() }],
@@ -422,16 +459,31 @@ export const useGameStore = create((set, get) => ({
   _checkBlackSwan: () => {
     const s = get();
     if (s.turn < C.BLACK_SWAN_START_TURN || s._bsActive || s.gameStatus !== 'playing') return;
-    const prob = 0.01 + (s.turn - C.BLACK_SWAN_START_TURN) * 0.001;
-    if (Math.random() < prob) get()._triggerBlackSwan();
+    const chance = Math.min(1, s._bsTriggerChance || C.BLACK_SWAN_START_PROB);
+    if (Math.random() < chance) {
+      get()._triggerBlackSwan();
+      return;
+    }
+    set({ _bsTriggerChance: Math.min(1, chance + C.BLACK_SWAN_PROB_STEP) });
   },
 
   _triggerBlackSwan: () => {
     const sw = BLACK_SWANS[Math.floor(Math.random() * BLACK_SWANS.length)];
     set(s2 => {
-      let extra = { _bsActive: sw, _bsTurnsLeft: C.BLACK_SWAN_TURNS };
-      if (sw.id === 'dumping') extra._bsDemandMul = 0.7;
-      if (sw.id === 'storm')   extra = { ...extra, interestRate: s2.interestRate + 0.30, economy: { phase: 'recession' }, _bsDemandMul: 0.6 };
+      let extra = {
+        _bsActive: sw,
+        _bsTurnsLeft: C.BLACK_SWAN_TURNS,
+        _bsRecoveryLeft: 0,
+        _bsDemandMul: C.BLACK_SWAN_DEMAND_MUL,
+        _bsRateShock: C.BLACK_SWAN_RATE_SHOCK,
+        _bsTriggerChance: C.BLACK_SWAN_START_PROB,
+      };
+      if (sw.id === 'storm') {
+        extra = {
+          ...extra,
+          economy: { phase: 'recession', turnsLeft: Math.max(ECO_PHASE_DURATION.min, s2.economy.turnsLeft || ECO_PHASE_DURATION.recession) },
+        };
+      }
       return extra;
     });
     get().addLog(`블랙 스완: ${sw.title}`, 'bad');
@@ -440,7 +492,21 @@ export const useGameStore = create((set, get) => ({
 
   _tickBlackSwan: () => {
     const s = get();
-    if (!s._bsActive) return false;
+    if (!s._bsActive) {
+      if (s._bsRecoveryLeft > 0) {
+        const demandStep = (1 - C.BLACK_SWAN_DEMAND_MUL) / C.BLACK_SWAN_RECOVERY_TURNS;
+        const rateStep = C.BLACK_SWAN_RATE_SHOCK / C.BLACK_SWAN_RECOVERY_TURNS;
+        const nextRecovery = s._bsRecoveryLeft - 1;
+        const nextDemandMul = Math.min(1, (s._bsDemandMul ?? 1) + demandStep);
+        const nextRateShock = Math.max(0, (s._bsRateShock || 0) - rateStep);
+        set({
+          _bsRecoveryLeft: nextRecovery,
+          _bsDemandMul: nextRecovery > 0 ? nextDemandMul : null,
+          _bsRateShock: nextRecovery > 0 ? nextRateShock : 0,
+        });
+      }
+      return false;
+    }
     if (s._bsActive.id === 'pe') {
       if (netWorth(s) < 500_000_000) {
         set({ gameStatus: 'hostile' });
@@ -451,11 +517,10 @@ export const useGameStore = create((set, get) => ({
     }
     const newLeft = s._bsTurnsLeft - 1;
     if (newLeft <= 0) {
-      const wasId = s._bsActive.id;
-      set(s2 => {
-        let reset = { _bsActive: null, _bsTurnsLeft: 0, _bsDemandMul: null };
-        if (wasId === 'storm') reset.interestRate = s2.interestRate - 0.30;
-        return reset;
+      set({
+        _bsActive: null,
+        _bsTurnsLeft: 0,
+        _bsRecoveryLeft: C.BLACK_SWAN_RECOVERY_TURNS,
       });
       get().addLog(`블랙 스완 종료: ${s._bsActive.title}`, 'good');
     } else {
@@ -489,8 +554,8 @@ export const useGameStore = create((set, get) => ({
 
     // Advance economy
     const curState = get();
-    const newPhase = advanceEconomy(curState.economy.phase, curState._boomBonus || 0, curState._bsActive?.id === 'storm');
-    set({ economy: { phase: newPhase } });
+    const nextEconomy = advanceEconomy(curState.economy, curState._boomBonus || 0, curState._bsActive?.id === 'storm');
+    set({ economy: nextEconomy });
 
     // Black swan
     get()._checkBlackSwan();
@@ -513,6 +578,8 @@ export const useGameStore = create((set, get) => ({
 
     // Turn result
     const result = calcTurnResult(get(), shareResult);
+    const settleState = get();
+    const turnGrade = calcCreditGrade(netWorth(settleState));
 
     // Cartel check
     let cartelFine = 0;
@@ -547,7 +614,99 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
-    const finalNetProfit = result.netProfit - accPenalty;
+    // Inventory aging / holding / disposal
+    const baseLots = (get().inventoryLots || []).map(lot => ({
+      ...lot,
+      age: (lot.age || 0) + 1,
+    }));
+    if (result.plannedProduction > 0) {
+      baseLots.push({ units: result.plannedProduction, age: 0, unitCost: result.netCost });
+    }
+    baseLots.sort((a, b) => b.age - a.age);
+
+    let toSell = result.sold;
+    const lotsAfterSell = [];
+    for (const lot of baseLots) {
+      if (toSell <= 0) {
+        lotsAfterSell.push(lot);
+        continue;
+      }
+      const used = Math.min(lot.units, toSell);
+      toSell -= used;
+      const left = lot.units - used;
+      if (left > 0) lotsAfterSell.push({ ...lot, units: left });
+    }
+
+    let disposalPenalty = 0;
+    let disposedUnits = 0;
+    const keptLots = [];
+    for (const lot of lotsAfterSell) {
+      if (lot.age >= C.INVENTORY_DISPOSE_AGE) {
+        disposedUnits += lot.units;
+        disposalPenalty += Math.round(lot.units * lot.unitCost * C.INVENTORY_DISPOSE_PENALTY_RATE);
+        continue;
+      }
+      keptLots.push(lot);
+    }
+    const inventoryUnits = keptLots.reduce((sum, lot) => sum + lot.units, 0);
+    const staleUnits = keptLots
+      .filter(lot => lot.age >= C.INVENTORY_BAD_AGE)
+      .reduce((sum, lot) => sum + lot.units, 0);
+    const inventoryHoldingCost = keptLots.reduce(
+      (sum, lot) => sum + Math.round(lot.units * lot.unitCost * C.INVENTORY_HOLD_COST_RATE),
+      0
+    );
+
+    // Policy event (small/frequent, capped to 15% of net worth)
+    let policyDelta = 0;
+    let policyTitle = '';
+    const nwCap = Math.max(1_000_000, Math.round(Math.max(0, netWorth(get())) * C.POLICY_NETWORTH_CAP_RATE));
+    if (Math.random() < C.POLICY_EVENT_PROB) {
+      const family = Math.random() < 0.5 ? 'regulation' : 'subsidy';
+      const pool = POLICY_EVENTS[family] || [];
+      const ev = pool[Math.floor(Math.random() * pool.length)];
+      if (ev) {
+        const shock = ev.shockMin + Math.random() * (ev.shockMax - ev.shockMin);
+        policyTitle = ev.title;
+        policyDelta = Math.round(nwCap * shock) * (family === 'regulation' ? -1 : 1);
+        if (ev.effect) {
+          set(s2 => ({
+            activeEffects: [...s2.activeEffects, { ...ev.effect }],
+          }));
+        }
+        get().addLog(
+          `정책 이벤트: ${policyTitle} ${policyDelta >= 0 ? '+' : ''}${fmtW(policyDelta)}`,
+          policyDelta >= 0 ? 'good' : 'bad'
+        );
+      }
+    }
+
+    const preTaxProfit = result.netProfit - accPenalty - inventoryHoldingCost - disposalPenalty + policyDelta;
+    const corporateTax = calcProgressiveTax(Math.max(0, preTaxProfit));
+    const finalNetProfit = preTaxProfit - corporateTax;
+
+    const prevDeficitStreak = settleState.deficitStreak || 0;
+    const nextDeficitStreak = finalNetProfit < 0 ? prevDeficitStreak + 1 : 0;
+    let nextDeficitPenalty = settleState.deficitRatePenalty || 0;
+    if (nextDeficitStreak >= 2) {
+      nextDeficitPenalty = Math.min(0.04, nextDeficitPenalty + 0.01);
+    } else if (nextDeficitStreak === 0 && nextDeficitPenalty > 0) {
+      nextDeficitPenalty = Math.max(0, nextDeficitPenalty - 0.01);
+    }
+
+    if (nextDeficitStreak >= 2 && nextDeficitStreak !== prevDeficitStreak) {
+      get().addLog(`연속 적자 ${nextDeficitStreak}턴: 신용 경계 강화, 금리 가산 +${(nextDeficitPenalty * 100).toFixed(1)}%p`, 'warn');
+    }
+    if (prevDeficitStreak > 0 && nextDeficitStreak === 0) {
+      get().addLog('적자 연속 상태 해소: 신용 경계 완화', 'good');
+    }
+
+    const settledEffectiveRate = getLoanRateByGrade(
+      settleState.interestRate,
+      turnGrade,
+      (settleState._bsRateShock || 0) + nextDeficitPenalty
+    );
+    if (disposedUnits > 0) get().addLog(`악성 재고 강제 폐기 ${disposedUnits}개`, 'warn');
 
     // Apply financial changes
     set(s2 => ({
@@ -555,6 +714,12 @@ export const useGameStore = create((set, get) => ({
       cumulativeProfit: s2.cumulativeProfit + finalNetProfit,
       profitHistory: [...s2.profitHistory, finalNetProfit].slice(-12),
       marketShare: shareResult.myShare,
+      inventoryLots: keptLots,
+      inventoryUnits,
+      creditGrade: turnGrade,
+      effectiveInterestRate: settledEffectiveRate,
+      deficitStreak: nextDeficitStreak,
+      deficitRatePenalty: nextDeficitPenalty,
       // Update rivals from share result
       rivals: (() => {
         const updRivals = s2.rivals.map(rv => {
@@ -565,7 +730,11 @@ export const useGameStore = create((set, get) => ({
         return updRivals.map(rv => {
           if (rv.bankrupt) return rv;
           const rvSold = Math.round(result.demand * (rv.marketShare || 0));
-          const rvProfit = rvSold * (rv.sellPrice - (s2.selectedVendor?.unitCost || 30000)) - 500_000;
+          const rvUnitCost = (s2.selectedVendor?.unitCost || 30000) * (rv.archetype === 'lowcost' ? 0.8 : 1.0);
+          let rvProfit = rvSold * (rv.sellPrice - rvUnitCost) - 500_000;
+          if (rv.archetype === 'innovation' && s2._bsActive && Math.random() < (rv.crisisBankruptRisk || 0.04)) {
+            rvProfit -= 50_000_000;
+          }
           const newCapital = (rv.capital || 20_000_000) + rvProfit;
           if (newCapital <= 0) return { ...rv, capital: 0, bankrupt: true, bankruptTurn: s2.turn };
           return { ...rv, capital: newCapital };
@@ -604,10 +773,13 @@ export const useGameStore = create((set, get) => ({
         if (!rv.bankrupt || !rv.bankruptTurn) return rv;
         if (s2.turn - rv.bankruptTurn < 2 + Math.floor(Math.random() * 2)) return rv;
         get().addLog(`${rv.name} 신규 경쟁사로 재진입!`, 'warn');
+        const archetypes = ['lowcost', 'premium', 'innovation', 'efficient'];
+        const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
         return {
           name: rv.name, capital: 15_000_000 + Math.floor(Math.random() * 15_000_000),
           brandValue: Math.floor(Math.random() * 15), priceResistance: 0.02, marketShare: 0,
-          pattern: ['aggressive','premium','copycat'][Math.floor(Math.random() * 3)],
+          archetype,
+          ...RIVAL_ARCHETYPES[archetype],
           sellPrice: 0, qualityScore: 70 + Math.floor(Math.random() * 70),
           bankrupt: false, bankruptTurn: 0, attraction: 0,
         };
@@ -637,11 +809,24 @@ export const useGameStore = create((set, get) => ({
     const reportData = {
       sold: result.sold,
       demand: result.demand,
+      targetSold: result.targetSold,
       revenue: result.revenue,
       cogs: result.cogs,
       gross: result.gross,
       totalFixed: result.totalFixed,
       netProfit: finalNetProfit,
+      corporateTax,
+      inventoryHoldingCost,
+      disposalPenalty,
+      staleUnits,
+      inventoryUnits,
+      policyDelta,
+      policyTitle,
+      effectiveRate: settledEffectiveRate,
+      creditGrade: turnGrade,
+      deficitStreak: nextDeficitStreak,
+      deficitRatePenalty: nextDeficitPenalty,
+      priceDemandMul: result.priceDemandMul,
       monthlyInt: result.monthlyInt,
       realtyRent: result.realtyRent,
       safetyCost: result.safetyCost,

@@ -1,4 +1,27 @@
-import { ECO_WEIGHTS, ECO_TRANSITIONS, ECO_RATE_ADJ, EV, C } from './constants.js';
+import {
+  ECO_WEIGHTS,
+  ECO_TRANSITIONS,
+  ECO_PHASE_DURATION,
+  ECO_RATE_ADJ,
+  EV,
+  C,
+  CREDIT_GRADES,
+  DIFF_DEMAND_ELASTICITY,
+} from './constants.js';
+import { calcCreditGrade } from './utils.js';
+
+const clamp = (min, v, max) => Math.max(min, Math.min(v, max));
+
+function samplePhaseTurns(phase) {
+  const base = ECO_PHASE_DURATION[phase] || ECO_PHASE_DURATION.stable;
+  const jitter = Math.floor(Math.random() * 3) - 1;
+  return Math.max(ECO_PHASE_DURATION.min, base + jitter);
+}
+
+export function getLoanRateByGrade(baseRate, grade, extraShock = 0) {
+  const spread = CREDIT_GRADES[grade]?.spread ?? CREDIT_GRADES.D.spread;
+  return Math.max(0.005, baseRate + spread + extraShock);
+}
 
 // ── Attraction score ──────────────────────────────────────────────────────────
 export function calcAttractionWithAwareness(qualityScore, brandValue, sellPrice, resistance, category, ecoPhase, awarenessBonus) {
@@ -41,26 +64,39 @@ export function calculateMarketShare(s, getEffectMod) {
 
   const activeRivals = s.rivals.filter(r => !r.bankrupt);
   const updatedRivals = activeRivals.map(rv => {
+    const archetype = rv.archetype || 'efficient';
     let newPrice = rv.sellPrice;
     if (!newPrice || newPrice === 0) {
       const baseCost = vendor.unitCost * 1.8;
       newPrice = Math.round(
-        rv.pattern === 'aggressive' ? baseCost * 0.85 :
-        rv.pattern === 'premium'    ? baseCost * 1.35 :
-        s.sellPrice > 0             ? s.sellPrice * 0.95 : baseCost
+        archetype === 'lowcost'    ? baseCost * 0.82 :
+        archetype === 'premium'    ? baseCost * 1.45 :
+        archetype === 'innovation' ? baseCost * 1.10 :
+                                     s.sellPrice > 0 ? s.sellPrice * 0.95 : baseCost
       );
     } else {
       newPrice = Math.round(
-        rv.pattern === 'aggressive' ? newPrice * (0.97 + Math.random() * 0.03) :
-        rv.pattern === 'premium'    ? newPrice * (1.00 + Math.random() * 0.02) :
-        s.sellPrice * (0.93 + Math.random() * 0.07)
+        archetype === 'lowcost'    ? newPrice * (0.97 + Math.random() * 0.02) :
+        archetype === 'premium'    ? newPrice * (1.00 + Math.random() * 0.02) :
+        archetype === 'innovation' ? s.sellPrice * (1.00 + Math.random() * 0.06) :
+                                     s.sellPrice * (0.93 + Math.random() * 0.07)
       );
     }
-    const attraction = calcAttractionWithAwareness(
-      rv.qualityScore, rv.brandValue, newPrice,
+    let quality = rv.qualityScore;
+    if (archetype === 'innovation' && Math.random() < 0.35) {
+      quality += Math.round(2 + Math.random() * 4);
+    }
+    if (archetype === 'lowcost') {
+      quality = Math.min(quality, 95);
+    }
+
+    let attraction = calcAttractionWithAwareness(
+      quality, rv.brandValue, newPrice,
       rv.priceResistance, s.itemCategory, s.economy.phase, 0
     );
-    return { ...rv, sellPrice: newPrice, attraction };
+    if (archetype === 'premium' && s.economy.phase === 'recession') attraction *= 1.2;
+    if (rv.startSharePenalty) attraction *= rv.startSharePenalty;
+    return { ...rv, sellPrice: newPrice, qualityScore: quality, attraction };
   });
 
   const allPlayers = [
@@ -81,8 +117,21 @@ export function calculateMarketShare(s, getEffectMod) {
 }
 
 // ── Economy advance ────────────────────────────────────────────────────────────
-export function advanceEconomy(currentPhase, boomBonus = 0, bsStorm = false) {
-  if (bsStorm) return 'recession';
+export function advanceEconomy(economyState, boomBonus = 0, bsStorm = false) {
+  const currentPhase = economyState?.phase || 'stable';
+  const turnsLeft = economyState?.turnsLeft || ECO_PHASE_DURATION.stable;
+
+  if (bsStorm) {
+    return {
+      phase: 'recession',
+      turnsLeft: Math.max(ECO_PHASE_DURATION.min, turnsLeft),
+    };
+  }
+
+  if (turnsLeft > 1) {
+    return { phase: currentPhase, turnsLeft: turnsLeft - 1 };
+  }
+
   const T = ECO_TRANSITIONS[currentPhase] || ECO_TRANSITIONS.stable;
   const adjusted = {
     boom:      T.boom      + boomBonus,
@@ -93,9 +142,9 @@ export function advanceEconomy(currentPhase, boomBonus = 0, bsStorm = false) {
   let acc = 0;
   for (const [phase, prob] of Object.entries(adjusted)) {
     acc += prob;
-    if (r < acc) return phase;
+    if (r < acc) return { phase, turnsLeft: samplePhaseTurns(phase) };
   }
-  return 'stable';
+  return { phase: 'stable', turnsLeft: samplePhaseTurns('stable') };
 }
 
 // ── Active effects modifier ────────────────────────────────────────────────────
@@ -111,17 +160,30 @@ export function calcTurnResult(s, shareResult) {
 
   const ecoMul      = ECO_WEIGHTS[s.itemCategory]?.[s.economy.phase] ?? 1.0;
   const bsMul       = s._bsDemandMul ?? 1.0;
+  const referencePrice = Math.max(1, (s.selectedVendor?.unitCost || 1) * C.DEMAND_REF_PRICE_MUL);
+  const priceGapRatio  = (s.sellPrice - referencePrice) / referencePrice;
+  const diffElasticity = DIFF_DEMAND_ELASTICITY[s.difficulty] ?? 1.0;
+  const priceDemandMul = clamp(
+    C.DEMAND_MIN_MUL,
+    1 - (priceGapRatio * C.DEMAND_ELASTICITY * diffElasticity),
+    C.DEMAND_MAX_MUL
+  );
   const evDemandMul = 1 + getEff(EV.MARKET_MUL);
   const docMul      = 1 + (s._docDemandMul || 0);
 
   const demand = Math.round(
     C.BASE_DEMAND * ecoMul * bsMul
+    * priceDemandMul
     * Math.max(0.1, evDemandMul) * Math.max(0.1, docMul)
     * (0.9 + Math.random() * 0.2)
   );
 
   const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
-  const sold          = s._shutdownLeft > 0 ? 0 : Math.round(demand * shareResult.myShare);
+  const openingInventory = s.inventoryUnits || 0;
+  const plannedProduction = Math.max(0, Math.round(demand * C.INVENTORY_PLAN_RATIO));
+  const availableUnits = openingInventory + plannedProduction;
+  const targetSold = s._shutdownLeft > 0 ? 0 : Math.round(demand * shareResult.myShare);
+  const sold = Math.min(targetSold, availableUnits);
 
   const netCost = Math.round(s.selectedVendor.unitCost * (factoryActive ? C.FACTORY_DISCOUNT : 1.0));
   const revenue = sold * s.sellPrice;
@@ -129,9 +191,9 @@ export function calcTurnResult(s, shareResult) {
   let   gross   = revenue - cogs;
 
   const evCostMul  = 1 + getEff(EV.COST_MUL);
-  const monthlyInt = Math.round(
-    s.debt * Math.max(0.005, s.interestRate + (ECO_RATE_ADJ[s.economy.phase] || 0) + getEff(EV.INTEREST)) / 12
-  );
+  const grade = s.creditGrade || calcCreditGrade((s.capital || 0) + (s.propertyValue || 0) - (s.debt || 0));
+  const loanRate = getLoanRateByGrade(s.interestRate, grade, s._bsRateShock || 0);
+  const monthlyInt = Math.round(s.debt * Math.max(0.005, loanRate + (ECO_RATE_ADJ[s.economy.phase] || 0) + getEff(EV.INTEREST)) / 12);
   const realtyRent  = s.realty === 'monthly' ? C.REALTY_MONTHLY_RENT : 0;
   const safetyCost  = factoryActive && s.factory.safetyOn ? C.FACTORY_SAFETY_COST : 0;
   const totalFixed  = Math.round(
@@ -142,9 +204,10 @@ export function calcTurnResult(s, shareResult) {
   const netProfit = gross - totalFixed;
 
   return {
-    demand, sold, factoryActive, netCost, revenue, cogs,
+    demand, sold, targetSold, openingInventory, plannedProduction, availableUnits,
+    factoryActive, netCost, revenue, cogs,
     gross, monthlyInt, realtyRent, safetyCost, totalFixed,
-    netProfit, ecoMul, evDemandMul, evCostMul,
+    netProfit, ecoMul, priceDemandMul, evDemandMul, evCostMul,
   };
 }
 

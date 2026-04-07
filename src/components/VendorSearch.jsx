@@ -2,9 +2,25 @@ import React, { useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { fmtW } from '../utils.js';
 
+function estimateOemMetrics(vendor) {
+  const quality = vendor.qualityScore || 80;
+  const type = (vendor.type || '').toLowerCase();
+  const defectRate = Math.max(1.0, 14 - (quality / 10));
+  const leadStability = type.includes('고품질')
+    ? 92
+    : type.includes('변동')
+      ? 66
+      : type.includes('실속')
+        ? 74
+        : 82;
+  const utility = Math.round((quality * 0.6) + (leadStability * 0.4) - (vendor.unitCost / 3000));
+  return { defectRate, leadStability, utility };
+}
+
 function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel }) {
   const effectiveCost = factoryActive ? Math.round(vendor.unitCost * 0.6) : vendor.unitCost;
   const effectiveQuality = vendor.qualityScore + (factoryActive ? upgradeLevel * 20 : 0);
+  const m = estimateOemMetrics(vendor);
 
   return (
     <div className="vc-card">
@@ -22,6 +38,11 @@ function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel 
       <div className="vc-row">
         <span className="vc-lbl">품질 점수</span>
         <span className="vc-val">{effectiveQuality}pt</span>
+      </div>
+      <div className="vc-metrics">
+        <div className="vc-metric"><span>예상 불량률</span><strong>{m.defectRate.toFixed(1)}%</strong></div>
+        <div className="vc-metric"><span>납기 안정성</span><strong>{m.leadStability}%</strong></div>
+        <div className="vc-metric"><span>편익/비용 점수</span><strong>{m.utility}점</strong></div>
       </div>
       <div className="vc-row">
         <span className="vc-lbl" style={{ color: 'var(--dim)', fontSize: '10px' }}>{vendor.description}</span>

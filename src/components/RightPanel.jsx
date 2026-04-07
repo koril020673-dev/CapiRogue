@@ -1,7 +1,14 @@
 import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
-import { PIE_COLORS } from '../constants.js';
+import { PIE_COLORS, RIVAL_ARCHETYPES } from '../constants.js';
 import { pct, fmtW } from '../utils.js';
+
+const TYPE_CLASS = {
+  lowcost: 'lowcost',
+  premium: 'premium',
+  innovation: 'innovation',
+  efficient: 'efficient',
+};
 
 function PieChart({ myShare, rivals }) {
   const slices = [
@@ -58,6 +65,9 @@ export default function RightPanel() {
             <div key={r.name} className={`rival-row${r.bankrupt ? ' v-dim' : ''}`}>
               <div className="rival-dot" style={{ background: PIE_COLORS[rivals.indexOf(r) + 1] || '#666' }} />
               <span className="rival-name">{r.name}{r.bankrupt ? ' 💀' : ''}</span>
+              <span className={`rival-type-badge ${TYPE_CLASS[r.archetype] || 'efficient'}`}>
+                {RIVAL_ARCHETYPES[r.archetype]?.label || '효율형'}
+              </span>
               <span className="rival-price">{r.sellPrice > 0 ? fmtW(r.sellPrice) : '–'}</span>
               <span className="rival-share">{pct(r.marketShare || 0)}</span>
             </div>

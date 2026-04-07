@@ -19,8 +19,20 @@ export const C = {
   FACTORY_ACCIDENT_SHUTDOWN: 2,
 
   BASE_DEMAND:               1000,
+  DEMAND_REF_PRICE_MUL:      2.2,
+  DEMAND_ELASTICITY:         1.0,
+  DEMAND_MIN_MUL:            0.35,
+  DEMAND_MAX_MUL:            1.80,
+
+  INVENTORY_PLAN_RATIO:      1.10,
+  INVENTORY_BAD_AGE:         3,
+  INVENTORY_DISPOSE_AGE:     5,
+  INVENTORY_HOLD_COST_RATE:  0.05,
+  INVENTORY_DISPOSE_PENALTY_RATE: 0.10,
+
   MONTHLY_FIXED_COST:        500_000,
   REALTY_MONTHLY_RENT:       1_000_000,
+  LOAN_MAX:                  1_000_000_000,
 
   CARTEL_REVENUE_MUL:        1.5,
   CARTEL_BUST_PROB:          0.15,
@@ -31,6 +43,11 @@ export const C = {
 
   BLACK_SWAN_START_TURN:     80,
   BLACK_SWAN_TURNS:          10,
+  BLACK_SWAN_RECOVERY_TURNS: 3,
+  BLACK_SWAN_START_PROB:     0.10,
+  BLACK_SWAN_PROB_STEP:      0.10,
+  BLACK_SWAN_DEMAND_MUL:     0.50,
+  BLACK_SWAN_RATE_SHOCK:     0.30,
 
   META_CAPITAL_BONUS_PER_BANKRUPT: 0.005,
   META_CAPITAL_BONUS_MAX:         0.15,
@@ -38,6 +55,8 @@ export const C = {
   META_BOOM_BONUS_MAX:            0.20,
 
   EVENT_TRIGGER_PROB:        0.15,
+  POLICY_EVENT_PROB:         0.05,
+  POLICY_NETWORTH_CAP_RATE:  0.15,
 };
 
 // ── Effect type keys ────────────────────────────────────────────────────────
@@ -64,9 +83,16 @@ export const ECO_WEIGHTS = {
 };
 
 export const ECO_TRANSITIONS = {
-  boom:      { boom: 0.35, stable: 0.50, recession: 0.15 },
-  stable:    { boom: 0.20, stable: 0.55, recession: 0.25 },
-  recession: { boom: 0.10, stable: 0.45, recession: 0.45 },
+  boom:      { boom: 0.20, stable: 0.65, recession: 0.15 },
+  stable:    { boom: 0.70, stable: 0.00, recession: 0.30 },
+  recession: { boom: 0.25, stable: 0.70, recession: 0.05 },
+};
+
+export const ECO_PHASE_DURATION = {
+  boom: 3,
+  stable: 5,
+  recession: 4,
+  min: 2,
 };
 
 export const ECO_RATE_ADJ = { boom: 0.02, stable: 0, recession: -0.015 };
@@ -79,10 +105,43 @@ export const ECO_META = {
 
 // ── Credit grades ────────────────────────────────────────────────────────────
 export const CREDIT_GRADES = {
-  A: { minNW: 500_000_000, limitRatio: 2.0,  rate: 0.048, label: 'A등급' },
-  B: { minNW: 100_000_000, limitRatio: 1.0,  rate: 0.060, label: 'B등급' },
-  C: { minNW:  50_000_000, limitRatio: 0.5,  rate: 0.084, label: 'C등급' },
-  D: { minNW:           0, limitFixed: 10_000_000, rate: 0.144, label: 'D등급' },
+  A: { minNW: 500_000_000, limitRatio: 2.0,  spread: 0.01, label: 'A등급' },
+  B: { minNW: 100_000_000, limitRatio: 1.0,  spread: 0.03, label: 'B등급' },
+  C: { minNW:  50_000_000, limitRatio: 0.5,  spread: 0.07, label: 'C등급' },
+  D: { minNW:           0, limitFixed: 10_000_000, spread: 0.15, label: 'D등급' },
+};
+
+export const TAX_BRACKETS = [
+  { upTo: 50_000_000, rate: 0.10 },
+  { upTo: 200_000_000, rate: 0.20 },
+  { upTo: Infinity, rate: 0.30 },
+];
+
+export const RIVAL_ARCHETYPES = {
+  lowcost: {
+    label: '저가 대량형',
+    costMul: 0.80,
+    qualityCap: 95,
+    aggressiveness: 'high',
+  },
+  premium: {
+    label: '프리미엄형',
+    recessionResilience: 0.5,
+    startSharePenalty: 0.6,
+    aggressiveness: 'low',
+  },
+  innovation: {
+    label: '혁신형',
+    rdEfficiency: 1.5,
+    crisisBankruptRisk: 0.06,
+    aggressiveness: 'mid',
+  },
+  efficient: {
+    label: '효율형',
+    zeroInventoryCost: true,
+    eventResilience: false,
+    aggressiveness: 'mid',
+  },
 };
 
 // ── Realty options ────────────────────────────────────────────────────────────
@@ -109,6 +168,62 @@ export const DIFF_CONFIG = {
 };
 
 export const DIFF_LABEL = { easy: '이지', normal: '노멀', hard: '하드', insane: '인세인' };
+
+export const DIFF_DEMAND_ELASTICITY = {
+  easy: 0.85,
+  normal: 1.00,
+  hard: 1.15,
+  insane: 1.30,
+};
+
+export const POLICY_EVENTS = {
+  regulation: [
+    {
+      id: 'antitrust_fine',
+      title: '독점 규제 과징금',
+      shockMin: 0.03,
+      shockMax: 0.08,
+      effect: { type: EV.MARKET_MUL, value: -0.08, turnsLeft: 2, source: 'policy_antitrust' },
+    },
+    {
+      id: 'safety_audit',
+      title: '정부 특별 안전점검',
+      shockMin: 0.02,
+      shockMax: 0.05,
+      effect: { type: EV.COST_MUL, value: 0.05, turnsLeft: 2, source: 'policy_safety' },
+    },
+    {
+      id: 'environment_compliance',
+      title: '환경 규제 준수비용',
+      shockMin: 0.02,
+      shockMax: 0.06,
+      effect: { type: EV.COST_MUL, value: 0.04, turnsLeft: 3, source: 'policy_env' },
+    },
+  ],
+  subsidy: [
+    {
+      id: 'employment_subsidy',
+      title: '고용 보조금',
+      shockMin: 0.03,
+      shockMax: 0.08,
+      effect: { type: EV.COST_MUL, value: -0.05, turnsLeft: 2, source: 'policy_employ' },
+    },
+    {
+      id: 'r_and_d_grant',
+      title: 'R&D 지원금',
+      shockMin: 0.03,
+      shockMax: 0.07,
+      effect: { type: EV.QUALITY, value: 8, turnsLeft: 3, source: 'policy_rd' },
+    },
+    {
+      id: 'investment_tax_credit',
+      title: '투자세액공제',
+      shockMin: 0.02,
+      shockMax: 0.05,
+      effect: { type: EV.MARKET_MUL, value: 0.06, turnsLeft: 2, source: 'policy_tax_credit' },
+    },
+  ],
+};
 
 // ── Stories ──────────────────────────────────────────────────────────────────
 export const STORIES = {
