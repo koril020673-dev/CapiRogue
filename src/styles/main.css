@@ -417,6 +417,7 @@ button, input, select, textarea {
 
 /* ── Vendor Search ── */
 .vendor-search  { display: flex; flex-direction: column; gap: 6px; }
+.vendor-list    { display: flex; flex-direction: column; gap: 6px; }
 .search-form    { display: flex; gap: 4px; }
 .search-input {
   flex: 1;

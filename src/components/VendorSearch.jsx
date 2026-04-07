@@ -2,9 +2,6 @@ import React, { useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { fmtW } from '../utils.js';
 
-const TYPE_LABEL = { cheap: '저가형', standard: '표준형', premium: '고급형' };
-const TYPE_COLOR = { cheap: 'var(--green)', standard: 'var(--blue)', premium: 'var(--yellow)' };
-
 function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel }) {
   const effectiveCost = factoryActive ? Math.round(vendor.unitCost * 0.6) : vendor.unitCost;
   const effectiveQuality = vendor.qualityScore + (factoryActive ? upgradeLevel * 20 : 0);
@@ -45,18 +42,14 @@ export default function VendorSearch() {
 
   const wholesaleOptions = useGameStore(s => s.wholesaleOptions);
   const selectedVendor   = useGameStore(s => s.selectedVendor);
-  const currentTab       = useGameStore(s => s.currentVendorTab);
   const aiLoading        = useGameStore(s => s.aiLoading);
   const aiLoadingText    = useGameStore(s => s.aiLoadingText);
   const searchStatus     = useGameStore(s => s.searchStatus);
   const factory          = useGameStore(s => s.factory);
   const searchItem       = useGameStore(s => s.searchItem);
   const selectVendor     = useGameStore(s => s.selectVendor);
-  const setVendorTab     = useGameStore(s => s.setVendorTab);
 
   const factoryActive   = factory.built && factory.buildTurnsLeft <= 0;
-  const tabVendors      = { cheap: 0, standard: 1, premium: 2 };
-  const currentVendor   = wholesaleOptions[tabVendors[currentTab]];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -86,36 +79,25 @@ export default function VendorSearch() {
       {searchStatus && !aiLoading && <div className="search-status">{searchStatus}</div>}
 
       {wholesaleOptions.length > 0 && (
-        <>
-          <div className="vendor-tabs">
-            {['cheap','standard','premium'].map(t => (
-              <button
-                key={t}
-                className={`vendor-tab${currentTab === t ? ' active-' + t : ''}`}
-                onClick={() => setVendorTab(t)}
-              >
-                {TYPE_LABEL[t]}
-              </button>
-            ))}
-          </div>
-
-          {currentVendor && (
+          <div className="vendor-list">
+            {wholesaleOptions.map((vendor, idx) => (
             <VendorCard
-              vendor={currentVendor}
-              isSelected={selectedVendor?.name === currentVendor.name}
-              onSelect={() => selectVendor(currentVendor)}
+              key={`${vendor.name}-${idx}`}
+              vendor={vendor}
+              isSelected={selectedVendor?.name === vendor.name}
+              onSelect={() => selectVendor(vendor)}
               factoryActive={factoryActive}
               upgradeLevel={factory.upgradeLevel || 0}
             />
-          )}
-        </>
+            ))}
+          </div>
       )}
 
       {selectedVendor && wholesaleOptions.length > 0 && (
         <div className="contract-box">
           <div className="contract-name">{selectedVendor.name}</div>
           <div className="contract-sub">
-            <span style={{ color: TYPE_COLOR[selectedVendor.type] || 'var(--dim)' }}>{TYPE_LABEL[selectedVendor.type]}</span>
+            {selectedVendor.type ? <span>{selectedVendor.type}</span> : <span>선택형</span>}
             &nbsp;·&nbsp;단가 {fmtW(selectedVendor.unitCost)}&nbsp;·&nbsp;품질 {selectedVendor.qualityScore}pt
           </div>
           {selectedVendor.description && (

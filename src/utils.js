@@ -51,10 +51,44 @@ export function generateFallbackVendors(itemName) {
   const seed = [...itemName].reduce((a, c) => a + c.charCodeAt(0), 0);
   const r = (base, range) => base + (seed % range);
   return [
-    { name: '대원물산',           type: 'cheap',    unitCost: r(12000, 8000),  qualityScore: r(55, 20), description: '대량 공급 전문, 빠른 납기' },
-    { name: `${itemName} 표준공업`, type: 'standard', unitCost: r(30000, 15000), qualityScore: r(100, 30), description: '품질과 가격의 균형' },
-    { name: '프리미엄코리아',     type: 'premium',  unitCost: r(70000, 30000), qualityScore: r(160, 25), description: '최고급 소재, 브랜드 차별화' },
+    { name: '대원물산',           type: '실속형', unitCost: r(12000, 8000),  qualityScore: r(55, 20), description: '대량 공급 전문, 빠른 납기' },
+    { name: `${itemName} 상사`,    type: '균형형', unitCost: r(30000, 15000), qualityScore: r(100, 30), description: '품질과 가격의 균형' },
+    { name: '노바 프라이빗',      type: '고품질형', unitCost: r(70000, 30000), qualityScore: r(160, 25), description: '브랜드 차별화에 유리' },
+    { name: '직거래 연합',        type: '변동형', unitCost: r(18000, 22000), qualityScore: r(80, 60), description: '가격 변동 큼, 타이밍 중요' },
   ];
+}
+
+// ── Search input guard ───────────────────────────────────────────────────────
+export function validateItemInput(raw) {
+  const text = (raw || '').trim();
+  if (!text) return { ok: false, reason: '아이템명을 입력하세요.' };
+  if (text.length < 2) return { ok: false, reason: '아이템명은 2자 이상 입력해주세요.' };
+  if (text.length > 24) return { ok: false, reason: '아이템명은 24자 이하로 입력해주세요.' };
+
+  const lower = text.toLowerCase();
+  const banned = [
+    '씨발', '시발', '병신', '좆', '개새끼', '새끼', 'fuck', 'fck', 'shit', 'bitch', 'asshole',
+  ];
+  if (banned.some(w => lower.includes(w))) {
+    return { ok: false, reason: '부적절한 단어는 사용할 수 없습니다.' };
+  }
+
+  const hasLetterOrDigit = /[가-힣a-zA-Z0-9]/.test(text);
+  if (!hasLetterOrDigit) {
+    return { ok: false, reason: '의미 있는 상품명을 입력해주세요.' };
+  }
+
+  const compact = lower.replace(/\s+/g, '');
+  if (/^(.)\1{3,}$/.test(compact)) {
+    return { ok: false, reason: '의미 없는 반복 문자는 사용할 수 없습니다.' };
+  }
+
+  if (compact.length >= 6) {
+    const uniq = new Set(compact).size;
+    if (uniq <= 2) return { ok: false, reason: '의미 없는 문자열로 판단되어 검색이 차단되었습니다.' };
+  }
+
+  return { ok: true, normalized: text };
 }
 
 // ── Animated number hook helper ───────────────────────────────────────────────

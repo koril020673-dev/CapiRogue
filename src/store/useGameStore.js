@@ -9,7 +9,7 @@ import {
   getActiveEffectModifier, calcMktBrandGain, calcMktAwarenessGain,
 } from '../calculations.js';
 import { fetchWholesaleData, getOfflineVendors } from '../apiService.js';
-import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign } from '../utils.js';
+import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign, validateItemInput } from '../utils.js';
 
 // ── Initial state factory ─────────────────────────────────────────────────────
 const INITIAL_GAME = () => ({
@@ -151,27 +151,35 @@ export const useGameStore = create((set, get) => ({
   searchItem: async (itemName) => {
     const s = get();
     if (s.aiLoading) return;
-    set({ aiLoading: true, aiLoadingText: `"${itemName}" 분석 중…`, searchStatus: '⏳ 탐색 중…' });
+    const check = validateItemInput(itemName);
+    if (!check.ok) {
+      set({ searchStatus: `⛔ ${check.reason}` });
+      get().addToast(check.reason, 'warn');
+      return;
+    }
+
+    const cleanName = check.normalized;
+    set({ aiLoading: true, aiLoadingText: `"${cleanName}" 분석 중…`, searchStatus: '⏳ 탐색 중…' });
 
     try {
-      const result = await fetchWholesaleData(itemName);
+      const result = await fetchWholesaleData(cleanName);
       set({
         wholesaleOptions: result.vendors,
         itemCategory: result.itemCategory,
         currentVendorTab: 'cheap',
         aiLoading: false,
-        searchStatus: `✅ "${itemName}" — ${{ essential:'필수재', normal:'일반재', luxury:'사치재' }[result.itemCategory]}`,
+        searchStatus: `✅ "${cleanName}" 분석 완료 — 업체 ${result.vendors.length}곳 제안`,
       });
-      get().addLog(`AI 분석 완료 — ${result.itemCategory} 카테고리`, 'good');
-      get().addToast(`도매업체 3곳 생성 완료`, 'good');
+      get().addLog(`AI 분석 완료 — 후보 ${result.vendors.length}곳`, 'good');
+      get().addToast('후보 업체가 생성되었습니다. 직접 비교 후 선택하세요.', 'good');
     } catch (err) {
-      const fallback = getOfflineVendors(itemName);
+      const fallback = getOfflineVendors(cleanName);
       set({
         wholesaleOptions: fallback.vendors,
         itemCategory: fallback.itemCategory,
         currentVendorTab: 'cheap',
         aiLoading: false,
-        searchStatus: `⚠️ 오프라인 모드: "${itemName}"`,
+        searchStatus: `⚠️ 오프라인 모드: "${cleanName}"`,
       });
       get().addLog('API 오류 — 오프라인 데이터 사용', 'warn');
       get().addToast('API 연결 실패 → 오프라인 데이터로 대체', 'warn');
