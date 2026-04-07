@@ -1,274 +1,148 @@
 # CapiRogue 개선 계획 (plan.md)
 
-## 📋 개선 우선순위
-
-### 🔴 **P0: 긴급 버그/안정성 (즉시 처리)**
-
-1. **gameState 초기화 예외 처리**
-   - `document.getElementById()` 실패 시 null체크 부족
-   - 난이도 선택 전 게임 실행 시도 방지
-   - 파일: `script.js` Line ~250 (updateUI)
-   - 해결: try-catch 래핑 또는 early return 추가
-
-2. **API 키 노출 문제**
-   - Gemini API 키가 프론트엔드에 하드코딩됨 (Line 1540)
-   - 보안 위험: 누구나 이 키로 API 호출 가능
-   - 해결방법:
-     - 백엔드 프록시 서버 구축 (권장)
-     - 또는 환경변수 + 빌드 시점에 주입
-     - 또는 키 로테이션/제한설정 필수
-
-3. **메모리 누수 가능성**
-   - toast/이벤트리스너 정리 미흡
-   - 모달 닫을 때 이벤트리스너 제거 필요
-   - 파일: `script.js` Line ~450 (closeModal)
-   - 해결: removeEventListener 명시적 호출
-
-4. **localStorage 의존성**
-   - Meta 데이터 try-catch 있지만 용량 초과 상황 미처리
-   - 파일: `script.js` Line ~2150 (loadMeta, saveMeta)
-   - 해결: 용량 체크 및 사용자 안내 추가
+> **마지막 업데이트**: 2026-04-07  
+> **현재 커밋**: `b7e51a8` → `koril020673-dev/CapiRogue.git`  
+> **상태**: 스텁 함수 구현 진행 중
 
 ---
 
-### 🟠 **P1: 코드 품질 (1주일 내)**
+## ✅ 완료된 항목
 
-1. **함수 분리 & 모듈화**
-   - `updateUI()`: 500+ 줄 → 너무 큼
-   - `runTurn()`: 200+ 줄 → 단일 책임 위반
-   - 해결:
-     ```javascript
-     // updateUI 분해
-     updateUIFinance()
-     updateUIBrand()
-     updateUIMarket()
-     updateUIFactory()
-     updateUIHR()
-     
-     // runTurn 분해
-     processGamePhase()
-     calculateMarket()
-     calculateProfit()
-     checkEndConditions()
-     ```
-
-2. **상수 정의 분산**
-   - HR_TRAIN_COST, BASE_DEMAND 등이 코드 곳곳에
-   - 파일: `script.js` Line ~250, 1750, 2150
-   - 해결: 파일 상단 CONSTANTS 객체로 통일
-
-3. **조건문 복잡도 감소**
-   - 다중 중첩 if-else (특히 `rollMonthlyEvent()`)
-   - 파일: `script.js` Line ~3500+
-   - 해결: Early return 패턴 또는 상태 머신 도입
-
-4. **매직 넘버 제거**
-   - 0.05, 0.15, 50_000_000 등이 여러 곳에
-   - 파일: 다수
-   - 해결: 이름있는 상수로 치환
+- [x] HTML/CSS/JS 파일 분리 (`index.html`, `style.css`, `script.js`, `config.js`)
+- [x] UI_SPEC.md 기준 HTML 전체 재구성 (클래스명·ID 전수 교정)
+- [x] CSS 보완 (`.hidden`, `hqEvolve` 애니메이션, 파이차트 팔레트, profit-badge, swan-bg)
+- [x] CONSTANTS 객체 통일 (매직 넘버 제거)
+- [x] DOM 쿼리 캐싱 (`_dom()` 헬퍼)
+- [x] 이벤트 위임 적용
+- [x] API 호출 Debounce 적용
+- [x] 스텁 구현: `updateHQVisual()`, `updateTimeline()`, `renderPieChart()`, `renderStatusBoard()`
 
 ---
 
-### 🟡 **P2: 성능 최적화 (2주일 내)**
+## 🔴 P0: 게임 루프가 동작하려면 필수 (즉시 구현)
 
-1. **DOM 쿼리 캐싱**
-   - `document.getElementById()` 매번 호출
-   - 파일: `script.js` updateUI, renderUI 등
-   - 해결:
-     ```javascript
-     // 캐시 객체 생성
-     const DOM = {
-       capital: document.getElementById('lp-capital'),
-       debt: document.getElementById('lp-debt'),
-       // ... 모든 자주 쓰는 요소
-     };
-     DOM.capital.textContent = fmtW(gameState.capital);
-     ```
+### 1. `rollMonthlyEvent(s)` — script.js line 1900
+- 현재: `return null;` (빈 스텁)
+- 역할: 매 턴 랜덤 이벤트 발생 (경기침체, 블랙스완, 호재 등)
+- 구현 필요:
+  - `gameState.difficulty`에 따른 이벤트 확률 조정
+  - 반환값: `{ type, title, desc, effect }` 이벤트 객체 또는 `null`
+  - 블랙스완 발생 시 `body.swan-bg-dump/fund/storm` 클래스 토글
 
-2. **이벤트 위임 (Event Delegation)**
-   - `.vendor-tab` 각각에 addEventListener
-   - 파일: `script.js` Line ~1050
-   - 해결: 부모 요소 1개에 위임
-     ```javascript
-     document.querySelector('.vendor-tabs').addEventListener('click', e => {
-       if(e.target.classList.contains('vendor-tab')) {
-         gameState.currentVendorTab = e.target.dataset.type;
-       }
-     });
-     ```
+### 2. `tickActiveEffects(s)` — script.js line 1901
+- 현재: 빈 함수 `{}`
+- 역할: 매 턴마다 `gameState.activeEffects` 배열의 `turns` 카운트다운
+- 구현 필요:
+  - 각 효과 `turns -= 1`, `turns <= 0`이면 배열에서 제거
+  - 이후 `renderStatusBoard()` 호출
 
-3. **renderProfitChart() 최적화**
-   - 매 턴마다 전체 막대 재생성
-   - 파일: `script.js` Line ~820
-   - 해결: 최근 12개만 유지, 증분 업데이트
+### 3. `getActiveEffectModifier(type)` — script.js line 1902
+- 현재: `return 0;` (항상 0)
+- 역할: 활성화된 효과 중 `type`에 해당하는 수치 합산 반환
+- 구현 필요:
+  ```javascript
+  return gameState.activeEffects
+    .filter(e => e.type === type)
+    .reduce((sum, e) => sum + e.value, 0);
+  ```
 
-4. **API 호출 Debounce**
-   - 검색 입력 시마다 즉시 API 호출 가능
-   - 파일: `script.js` Line ~1700
-   - 해결: 300ms debounce 적용
-
-5. **requestAnimationFrame 활용**
-   - `animateNum()` setTimeout 사용
-   - 파일: `script.js` Line ~3100
-   - 현재: requestAnimationFrame 사용 ✅ (이미 좋음)
+### 4. `step5PostUI()` — script.js line 1995
+- 현재: 빈 함수 `{}`
+- 역할: 다음 턴 버튼 활성화, 결재 버튼 상태 갱신 등 Step 5 UI 마무리
+- 구현 필요:
+  - `#next-btn` 활성화
+  - 완료된 연구/결재 결과 알림 처리
 
 ---
 
-### 🟢 **P3: 기능 추가 (3주일 이후)**
+## 🟠 P1: 결재(Doc) 시스템 구현
 
-1. **게임 저장/로드 기능**
-   - 현재: 메타 진행도만 저장
-   - 필요: 현재 게임 스냅샷 저장 가능하게
-   - 방법: localStorage 또는 IndexedDB 활용
+### 5. `generateDocCards()` — script.js line 1992
+- 현재: 빈 함수 `{}`
+- 역할: 이번 턴 처리 가능한 결재 카드 목록 생성
+- 구현 필요:
+  - `gameState.pendingDocs = [...]` 배열에 카드 저장
+  - 각 카드: `{ id, title, cost, effect, type }` 형태
+  - 조건 기반 카드 생성 (자금 부족 시 대출 카드, 인력 부족 시 채용 카드 등)
 
-2. **언어 지원 (다국어화)**
-   - 현재: 한국어만
-   - 방법: i18n 라이브러리 또는 간단한 객체 기반 번역
+### 6. `renderDocCards(enabled=true)` — script.js line 1993
+- 현재: 빈 함수 `{}`
+- 역할: `pendingDocs` 배열을 `doc-section` DOM에 렌더링
+- 구현 필요:
+  - `#doc-list` 내부에 카드 HTML 생성
+  - `enabled=false`일 때 모든 카드 비활성화
+  - 카드 클릭 → 결재 처리 후 `gameState.approvedDocs`에 추가
 
-3. **통계 및 리플레이 시스템**
-   - 게임 진행 기록 (턴별 의사결정)
-   - 리플레이 영상 생성 가능하게
-
-4. **튜토리얼 & 온보딩**
-   - 첫 게임 시 가이드 표시
-   - 각 기능별 Tooltip
-
-5. **모바일 반응형 개선**
-   - 현재 CSS 반응형 있지만 터치 최적화 미흡
-   - 파일: `style.css` Line ~1800+ (@media)
-   - 해결: 터치 친화적 버튼 크기, 모바일 우선 설계
+### 7. `updateDocSection()` — script.js line 1994
+- 현재: 빈 함수 `{}`
+- 역할: `generateDocCards()` + `renderDocCards()` 합성 호출
 
 ---
 
-### 💜 **P4: UX/UI 개선**
+## 🟡 P2: UX 연출
 
-1. **어두운 테마만 있음 (옅은 테마 추가)**
-   - CSS 변수 활용해서 쉽게 토글 가능
-   - 파일: `style.css` Line ~1-50 (CSS variables)
-
-2. **키보드 네비게이션**
-   - Tab 키 순서 정의 필요
-   - Enter 키로 버튼 활성화
-   - 파일: `index.html` 모든 interactive 요소
-
-3. **로딩 상태 표시**
-   - AI 호출 중 다른 버튼 비활성화
-   - 파일: `script.js` Line ~1600 (showAILoading)
-   - 해결: 이미 있음 ✅ (개선 필요한 정도)
-
-4. **에러 메시지 개선**
-   - 현재: toast로만 표시
-   - 개선: 상황별 명확한 에러 메시지
-   - 예: "현금 부족 (1억 2천만 부족)" → "현금 부족: 추가 1억 2천만 필요"
-
-5. **애니메이션 미세조정**
-   - 숫자 롤링 속도 조정 가능하게
-   - 전체 애니메이션 끄기 옵션 추가 (접근성)
+### 8. `showNewsBreaking(event)` — script.js line 1996
+- 현재: 빈 함수 `{}`
+- 역할: 블랙스완/주요 이벤트 발생 시 뉴스 속보 오버레이 연출
+- 구현 필요:
+  - 화면 중앙에 오버레이 표시 (`modal-overlay` + `modal-box` 재사용 가능)
+  - `event.type`에 따라 `swan-bg-dump/fund/storm` 배경 적용
+  - 2~3초 후 자동 닫힘 또는 클릭으로 닫기
 
 ---
 
-### 🔵 **P5: 테스트 & 문서**
+## 🔵 P3: 보안 보완
 
-1. **단위 테스트 작성**
-   - calcAttraction(), calcMarketShares() 등 순수 함수
-   - 사용 라이브러리: Jest 또는 Vitest
-   - 목표: 80%+ 커버리지
-
-2. **통합 테스트**
-   - 한 턴 진행 로직 검증
-   - 블랙스완, 이벤트 트리거 검증
-
-3. **코드 주석 추가**
-   - 복잡한 알고리즘 설명 필요
-   - 파일: `script.js` Line ~1750+ (시장 계산)
-
-4. **README 보완**
-   - 게임 규칙 상세 설명
-   - 게임 밸런싱 파라미터 문서화
-   - API 명세(formatNumber, toast 등)
-
-5. **변경 이력 (CHANGELOG.md)**
-   - v1.0 → v1.1 → ... 추적
+### 9. API 키 노출 문제 (config.js)
+- 현재: `config.js`에 분리되었지만 여전히 프론트엔드에 노출됨
+- 위험: 소스에서 누구나 키 추출 가능
+- 해결 옵션 (택 1):
+  - **최소 조치**: Google Cloud Console에서 HTTP Referrer 제한 설정
+  - **권장**: 간단한 백엔드 프록시 구축 (Node.js Express 5줄)
+  - **배포용**: Cloudflare Worker 또는 Vercel Edge Function
 
 ---
 
-## 🛠️ 구현 순서 (제안)
+## 🟢 P4: 추후 기능 추가
 
-### **Week 1 (긴급)**
-- [ ] P0-1: API 키 보안 처리
-- [ ] P0-2: gameState 초기화 try-catch
-- [ ] P0-4: localStorage 용량 체크
-
-### **Week 2 (코드 정리)**
-- [ ] P1-1: 함수 분리 (updateUI, runTurn)
-- [ ] P1-2: 상수 통일
-- [ ] P2-1: DOM 캐싱
-
-### **Week 3 (성능)**
-- [ ] P2-2: 이벤트 위임
-- [ ] P2-4: Debounce 추가
-- [ ] P1-3: 조건문 단순화
-
-### **Week 4+ (기능 & 테스트)**
-- [ ] P3-1: 게임 저장 기능
-- [ ] P5-1: 단위 테스트
-- [ ] P4-2: 키보드 네비게이션
+1. **게임 저장/로드 기능** — 현재 게임 스냅샷 `localStorage` 저장 + 이어하기 버튼
+2. **튜토리얼 & 온보딩** — 첫 게임 시 각 UI 영역 툴팁, `localStorage`로 "첫 방문" 체크
+3. **모바일 반응형** — 현재 640px 이상 대상, 태블릿 세로 모드 레이아웃 추가
+4. **접근성 보완** — `aria-label`, `role` 누락 버튼 정비, Tab 네비게이션 순서
 
 ---
 
-## 📊 영향도 vs 난이도
+## 📊 현재 스텁 함수 구현 상태
 
-| 항목 | 영향도 | 난이도 | 추천 |
-|------|--------|--------|------|
-| API 키 보안 | 🔴 높음 | 🟢 낮음 | **지금 해야됨** |
-| 함수 분리 | 🟠 중간 | 🟡 중간 | 다음 주 |
-| DOM 캐싱 | 🟡 중간 | 🟢 낮음 | 다음 주 |
-| 테스트 작성 | 🟢 낮음 | 🟡 중간 | 나중에 |
-| 다국어화 | 🟡 중간 | 🟠 높음 | 나중에 |
-
----
-
-## 🎯 추천 즉시 Action Items
-
-1. **API 키 이동** → .env 파일 또는 백엔드 프록시
-2. **Plan.md 생성** ← 현재 완료 ✅
-3. **함수 분리 시작** → updateUI() 분해
-4. **DOM 캐싱** → 성능 개선 빠른 이득
+| 함수 | 상태 | 우선순위 |
+|------|------|----------|
+| `rollMonthlyEvent(s)` | 🔴 스텁 (`return null`) | P0 |
+| `tickActiveEffects(s)` | 🔴 스텁 (빈 함수) | P0 |
+| `getActiveEffectModifier(type)` | 🔴 스텁 (`return 0`) | P0 |
+| `step5PostUI()` | 🔴 스텁 (빈 함수) | P0 |
+| `generateDocCards()` | 🟠 스텁 (빈 함수) | P1 |
+| `renderDocCards(enabled)` | 🟠 스텁 (빈 함수) | P1 |
+| `updateDocSection()` | 🟠 스텁 (빈 함수) | P1 |
+| `showNewsBreaking(event)` | 🟡 스텁 (빈 함수) | P2 |
+| `updateHQVisual()` | ✅ 구현 완료 | — |
+| `updateTimeline()` | ✅ 구현 완료 | — |
+| `renderPieChart()` | ✅ 구현 완료 | — |
+| `renderStatusBoard()` | ✅ 구현 완료 | — |
 
 ---
 
-## 📝 파일별 개선 체크리스트
+## 🛠️ 다음 작업 순서 (권장)
 
-### `index.html` (~900줄)
-- [ ] 각 input/button에 aria-label 추가 (접근성)
-- [ ] form 유효성 검사 (HTML5)
-- [ ] lang="ko" 속성 확인
-
-### `style.css` (~2,100줄)
-- [ ] 다크/라이트 테마 토글
-- [ ] 모바일 터치 최적화 (tap-highlight 제거)
-- [ ] 애니메이션 성능 최적화 (will-change)
-
-### `script.js` (~4,200줄)
-- [ ] 함수 단위 분리
-- [ ] 에러 핸들링 강화
-- [ ] JSDoc 주석 추가
-- [ ] 전역 변수 최소화 (_bsActive 등)
+1. `getActiveEffectModifier(type)` — 가장 단순, 한 줄
+2. `tickActiveEffects(s)` — 배열 순회 로직
+3. `rollMonthlyEvent(s)` — 이벤트 테이블 정의 필요 (config.js에 추가 권장)
+4. `step5PostUI()` — 어떤 버튼을 어떤 조건에 활성화할지 확인 후 구현
+5. `generateDocCards()` + `renderDocCards()` + `updateDocSection()` — 세트로 구현
+6. `showNewsBreaking(event)` — 게임 연출 마무리
 
 ---
 
-## 👥 참고: 코드 복잡도 분석
-
-| 함수 | 줄수 | 복잡도 | 상태 |
-|------|------|--------|------|
-| updateUI | 500+ | 🔴 높음 | 분리 필요 |
-| runTurn | 200+ | 🟠 중간 | 약간 분리 |
-| calculateMarketShare | 100 | 🟡 중간 | OK |
-| generateSecretaryReport | 150 | 🟡 중간 | OK ish |
-| rollMonthlyEvent | 80 | 🟠 중간 | 단순화 가능 |
-
----
-
-**생성일**: 2026-04-06  
-**버전**: v1.0 (분석 기준)  
-**상태**: 검토 대기중
+**Git push 방법 (origin이 다른 계정)**:
+```bash
+git push https://github.com/koril020673-dev/CapiRogue.git main
+```

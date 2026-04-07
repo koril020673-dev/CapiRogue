@@ -1,8 +1,5 @@
 # 캐피로그 — UI/UX 설계 명세서
 
-> 기준 파일: `market_master_step5.html` (4,778줄 / 231KB)  
-> 스택: 순수 HTML + CSS + Vanilla JS · 외부 라이브러리 없음
-
 ---
 
 ## 1. 디자인 토큰
