@@ -52,6 +52,7 @@ const INITIAL_GAME = () => ({
   deficitStreak: 0,
   deficitRatePenalty: 0,
   activeEffects: [],
+  newsFeed: [],
   _storyShown: {},
   _docDemandMul: 0,
   _lastDocResult: null,
@@ -138,6 +139,23 @@ export const useGameStore = create((set, get) => ({
     set(s => ({
       logs: [{ turn: s.turn, msg, type, id: Date.now() + Math.random() }, ...s.logs].slice(0, 40),
     }));
+  },
+
+  _pushNews: (entry, openAsModal = false) => {
+    const payload = {
+      id: Date.now() + Math.random(),
+      turn: get().turn,
+      title: entry?.title || '시장 뉴스',
+      body: entry?.body || '',
+      type: entry?.type || 'neutral',
+      icon: entry?.icon || '📰',
+      tag: entry?.tag || 'general',
+      effectDesc: entry?.effectDesc || '',
+    };
+    set(s => ({
+      newsFeed: [payload, ...(s.newsFeed || [])].slice(0, 30),
+    }));
+    if (openAsModal) get().openModal('news', payload);
   },
 
   // ── Modal control ────────────────────────────────────────────────────────────
@@ -537,6 +555,7 @@ export const useGameStore = create((set, get) => ({
     if (s.turnProcessing) return;
 
     set({ turnProcessing: true });
+    let queuedNews = null;
 
     // Tick effects
     set(s2 => ({
@@ -556,6 +575,17 @@ export const useGameStore = create((set, get) => ({
     const curState = get();
     const nextEconomy = advanceEconomy(curState.economy, curState._boomBonus || 0, curState._bsActive?.id === 'storm');
     set({ economy: nextEconomy });
+    if (nextEconomy.phase !== curState.economy.phase) {
+      const phaseNames = { boom: '호황기', stable: '평시', recession: '불황기' };
+      queuedNews = {
+        title: `경기 국면 전환: ${phaseNames[curState.economy.phase] || '평시'} → ${phaseNames[nextEconomy.phase] || '평시'}`,
+        body: `시장 심리와 수요 구조가 변하고 있습니다. 다음 ${nextEconomy.turnsLeft}턴 동안 ${phaseNames[nextEconomy.phase] || '평시'} 기조가 유지됩니다.`,
+        type: nextEconomy.phase === 'recession' ? 'bad' : nextEconomy.phase === 'boom' ? 'good' : 'neutral',
+        icon: nextEconomy.phase === 'recession' ? '📉' : nextEconomy.phase === 'boom' ? '🚀' : '🧭',
+        tag: 'macro',
+      };
+      get()._pushNews(queuedNews, false);
+    }
 
     // Black swan
     get()._checkBlackSwan();
@@ -678,6 +708,18 @@ export const useGameStore = create((set, get) => ({
           `정책 이벤트: ${policyTitle} ${policyDelta >= 0 ? '+' : ''}${fmtW(policyDelta)}`,
           policyDelta >= 0 ? 'good' : 'bad'
         );
+        const policyNews = {
+          title: `정책 속보: ${policyTitle}`,
+          body: family === 'regulation'
+            ? '정부 규제 강화 조치가 발표되었습니다. 단기 수익성과 비용 구조를 재점검하세요.'
+            : '정부 지원 정책이 발표되었습니다. 투자 타이밍을 적극 활용하세요.',
+          effectDesc: `${policyDelta >= 0 ? '+' : ''}${fmtW(policyDelta)} / 영향 상한: 순자산 15%`,
+          type: policyDelta >= 0 ? 'good' : 'bad',
+          icon: family === 'regulation' ? '🏛️' : '💸',
+          tag: 'policy',
+        };
+        get()._pushNews(policyNews, false);
+        queuedNews = policyNews;
       }
     }
 
@@ -707,6 +749,27 @@ export const useGameStore = create((set, get) => ({
       (settleState._bsRateShock || 0) + nextDeficitPenalty
     );
     if (disposedUnits > 0) get().addLog(`악성 재고 강제 폐기 ${disposedUnits}개`, 'warn');
+
+    // Automatic opportunity-cost comparison log (OEM vs R&D vs Marketing)
+    const v = settleState.selectedVendor;
+    if (v) {
+      const oemDefect = Math.max(1.0, 14 - ((v.qualityScore || 80) / 10));
+      const oemStability = (v.type || '').includes('고품질') ? 92 : (v.type || '').includes('변동') ? 66 : 82;
+      const oemScore = Math.round(((v.qualityScore || 80) * 0.6) + (oemStability * 0.4) - (v.unitCost / 3000));
+      const mktBudget = 10_000_000;
+      const rdBudget = C.FACTORY_UPGRADE_COST;
+      const mktBrand = calcMktBrandGain(mktBudget).toFixed(1);
+      const mktAwareness = (calcMktAwarenessGain(mktBudget) * 100).toFixed(1);
+      const actionTag = settleState.mktThisTurn
+        ? '이번 턴 선택: 마케팅 집행'
+        : settleState.factory?.upgradeLevel > (s.factory?.upgradeLevel || 0)
+          ? '이번 턴 선택: R&D/설비 강화'
+          : '이번 턴 선택: 보수 운영';
+      get().addLog(
+        `의사결정 비교 | OEM 점수 ${oemScore}(불량 ${oemDefect.toFixed(1)}%·납기 ${oemStability}%) | R&D ${fmtW(rdBudget)}→품질+20 | 마케팅 ${fmtW(mktBudget)}→브랜드+${mktBrand}/인지도+${mktAwareness}% | ${actionTag}`,
+        'info'
+      );
+    }
 
     // Apply financial changes
     set(s2 => ({
@@ -848,6 +911,10 @@ export const useGameStore = create((set, get) => ({
       hr: { ...s2.hr, trainingThisTurn: 0 },
       _docDemandMul: 0,
     }));
+
+    if (queuedNews) {
+      await new Promise(resolve => set({ activeModal: 'news', modalData: queuedNews, _resumeTurn: resolve }));
+    }
 
     // Show report modal (async: waits for user to close)
     await new Promise(resolve => set({ activeModal: 'report', modalData: reportData, _resumeTurn: resolve }));

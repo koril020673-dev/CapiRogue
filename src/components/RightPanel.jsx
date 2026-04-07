@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { PIE_COLORS, RIVAL_ARCHETYPES } from '../constants.js';
 import { pct, fmtW } from '../utils.js';
@@ -48,6 +48,16 @@ function PieChart({ myShare, rivals }) {
 export default function RightPanel() {
   const marketShare = useGameStore(s => s.marketShare);
   const rivals      = useGameStore(s => s.rivals);
+  const newsFeed    = useGameStore(s => s.newsFeed || []);
+  const [policyFilter, setPolicyFilter] = useState('all');
+
+  const filteredPolicyNews = useMemo(() => {
+    const base = newsFeed.filter(n => n.tag === 'policy');
+    if (policyFilter === 'all') return base;
+    if (policyFilter === 'regulation') return base.filter(n => n.type === 'bad');
+    if (policyFilter === 'subsidy') return base.filter(n => n.type === 'good');
+    return base;
+  }, [newsFeed, policyFilter]);
 
   return (
     <div className="panel-right">
@@ -70,6 +80,27 @@ export default function RightPanel() {
               </span>
               <span className="rival-price">{r.sellPrice > 0 ? fmtW(r.sellPrice) : '–'}</span>
               <span className="rival-share">{pct(r.marketShare || 0)}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="divider" />
+
+      <div className="rp-title">정책 이력</div>
+      <div className="policy-filter-row">
+        <button className={`policy-filter-btn${policyFilter === 'all' ? ' active' : ''}`} onClick={() => setPolicyFilter('all')}>전체</button>
+        <button className={`policy-filter-btn${policyFilter === 'regulation' ? ' active' : ''}`} onClick={() => setPolicyFilter('regulation')}>규제</button>
+        <button className={`policy-filter-btn${policyFilter === 'subsidy' ? ' active' : ''}`} onClick={() => setPolicyFilter('subsidy')}>보조금</button>
+      </div>
+      <div className="policy-history-list">
+        {filteredPolicyNews.length === 0 ? (
+          <div className="rivals-empty">정책 이벤트 없음</div>
+        ) : (
+          filteredPolicyNews.slice(0, 6).map(item => (
+            <div key={item.id} className={`policy-item ${item.type === 'good' ? 'good' : item.type === 'bad' ? 'bad' : 'neu'}`} title={item.body || ''}>
+              <span className="policy-turn">T{item.turn}</span>
+              <span className="policy-title">{item.title}</span>
             </div>
           ))
         )}

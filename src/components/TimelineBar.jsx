@@ -12,7 +12,12 @@ export default function TimelineBar() {
   const turn    = useGameStore(s => s.turn);
   const maxTurns = useGameStore(s => s.maxTurns);
   const bsActive = useGameStore(s => s._bsActive);
+  const newsFeed = useGameStore(s => s.newsFeed || []);
   const pct = Math.min((turn / maxTurns) * 100, 100);
+  const timelineNews = newsFeed
+    .filter(n => n.tag === 'policy' || n.tag === 'macro')
+    .slice(0, 4)
+    .map(n => ({ ...n, left: Math.min(100, (n.turn / maxTurns) * 100) }));
 
   return (
     <div className="timeline-bar">
@@ -27,6 +32,16 @@ export default function TimelineBar() {
             title={m.label}
           >
             {m.icon}
+          </div>
+        ))}
+        {timelineNews.map(n => (
+          <div
+            key={n.id}
+            className={`tl-news-marker ${n.type === 'good' ? 'good' : n.type === 'bad' ? 'bad' : 'neu'}`}
+            style={{ left: `${n.left}%` }}
+            title={`T${n.turn} ${n.title}`}
+          >
+            {n.icon || '•'}
           </div>
         ))}
         <div className="tl-marker-cur" style={{ left: pct + '%' }} />
