@@ -39,13 +39,19 @@ export default function CenterPanel() {
 
       {/* ── Step 1+2: Item search & vendor contract ── */}
       <section className="cp-section" id="section-vendor">
-        <div className="cp-section-title">아이템 탐색 · 계약</div>
+        <div className="cp-section-header-wrap">
+          <div className="cp-section-title">아이템 탐색 · 계약</div>
+          <span className="tooltip-icon" title="매달 어떤 품질과 단가를 가진 도매업체와 계약할지 선택해야 합니다.">ℹ️</span>
+        </div>
         <VendorSearch />
       </section>
 
       {/* ── Step 3: Price ── */}
       <section className="cp-section" id="section-price">
-        <div className="cp-section-title">판매가 설정</div>
+        <div className="cp-section-header-wrap">
+          <div className="cp-section-title">판매가 설정</div>
+          <span className="tooltip-icon" title="적당한 마진을 남기되, 수요가 끊기지 않도록 시장 상황에 맞게 가격을 설정하세요.">ℹ️</span>
+        </div>
         <PriceBlock />
       </section>
 
@@ -71,7 +77,13 @@ export default function CenterPanel() {
       <DashGrid />
 
       {/* Action buttons: 부동산, 대출, M&A, 업적 */}
-      <ActionButtons />
+      <section className="cp-section" id="section-business">
+        <div className="cp-section-header-wrap">
+          <div className="cp-section-title">주요 경영 지시</div>
+          <span className="tooltip-icon" title="부동산 매입, 특수 M&A 등 장기적 투자를 진행할 수 있습니다.">ℹ️</span>
+        </div>
+        <ActionButtons />
+      </section>
 
       {/* ── Step 5: Advance turn ── */}
       <button
@@ -82,7 +94,7 @@ export default function CenterPanel() {
         {s.turnProcessing
           ? '⏳ 정산 중…'
           : canAdvance
-            ? `다음 달로 (${s.turn}개월 차 → ${s.turn + 1}개월)`
+            ? `다음 달로 진행 ➔`
             : !s.selectedVendor
               ? '도매업체 미선택'
               : '판매가 설정 필요'}
