@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { useShallow } from 'zustand/react/shallow';
 import ActionGuide from './ActionGuide.jsx';
@@ -11,6 +11,34 @@ import FactoryBlock from './FactoryBlock.jsx';
 import DashGrid from './DashGrid.jsx';
 import ActionButtons from './ActionButtons.jsx';
 import StatusBoard from './StatusBoard.jsx';
+
+/* ── 접기/펼치기 섹션 ── */
+function CollapsibleSection({ id, title, badge, tooltip, children, className = '' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className={`cp-section cp-collapsible ${className}`} id={id}>
+      <button className="cp-collapsible-header" onClick={() => setOpen(o => !o)}>
+        <div className="cp-section-title">
+          {title}
+          {badge && <span className="cp-section-badge">{badge}</span>}
+        </div>
+        <div className="cp-collapsible-right">
+          {tooltip && (
+            <span
+              className="tooltip-icon"
+              title={tooltip}
+              onClick={e => e.stopPropagation()}
+            >
+              ℹ️
+            </span>
+          )}
+          <span className={`cp-chevron${open ? ' open' : ''}`}>›</span>
+        </div>
+      </button>
+      {open && <div className="cp-collapsible-body">{children}</div>}
+    </section>
+  );
+}
 
 export default function CenterPanel() {
   const s = useGameStore(useShallow(s => ({
@@ -28,6 +56,7 @@ export default function CenterPanel() {
 
   return (
     <div className="panel-center">
+
       {/* Step progress */}
       <ActionGuide />
 
@@ -37,7 +66,7 @@ export default function CenterPanel() {
       {/* Economy banner */}
       <EcoBanner />
 
-      {/* ── Step 1+2: Item search & vendor contract ── */}
+      {/* Step 1+2: Item search & vendor contract */}
       <section className="cp-section" id="section-vendor">
         <div className="cp-section-header-wrap">
           <div className="cp-section-title">아이템 탐색 · 계약</div>
@@ -46,7 +75,7 @@ export default function CenterPanel() {
         <VendorSearch />
       </section>
 
-      {/* ── Step 3: Price ── */}
+      {/* Step 3: Price */}
       <section className="cp-section" id="section-price">
         <div className="cp-section-header-wrap">
           <div className="cp-section-title">판매가 설정</div>
@@ -55,12 +84,14 @@ export default function CenterPanel() {
         <PriceBlock />
       </section>
 
-      {/* ── Step 4: Optional actions ── */}
-      <section className="cp-section cp-section-optional" id="section-optional">
-        <div className="cp-section-title">
-          선택 행동
-          <span className="cp-section-badge">선택</span>
-        </div>
+      {/* Step 4: Optional — collapsible (기본 접힘) */}
+      <CollapsibleSection
+        id="section-optional"
+        title="선택 행동"
+        badge="선택"
+        tooltip="인사 교육, 공장 건설 등 선택적 투자를 할 수 있습니다."
+        className="cp-section-optional"
+      >
         <HRBlock />
         <FactoryBlock />
         {(s.difficulty === 'hard' || s.difficulty === 'insane') && (
@@ -71,21 +102,21 @@ export default function CenterPanel() {
             {s.cartel?.active ? '담합 활성 (클릭하여 해제)' : '담합 활성화 (×1.5 수익 / 적발 15%)'}
           </button>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* Dashboard */}
       <DashGrid />
 
-      {/* Action buttons: 부동산, 대출, M&A, 업적 */}
-      <section className="cp-section" id="section-business">
-        <div className="cp-section-header-wrap">
-          <div className="cp-section-title">주요 경영 지시</div>
-          <span className="tooltip-icon" title="부동산 매입, 특수 M&A 등 장기적 투자를 진행할 수 있습니다.">ℹ️</span>
-        </div>
+      {/* 주요 경영 지시 — collapsible (기본 접힘) */}
+      <CollapsibleSection
+        id="section-business"
+        title="주요 경영 지시"
+        tooltip="부동산 매입, 특수 M&A 등 장기적 투자를 진행할 수 있습니다."
+      >
         <ActionButtons />
-      </section>
+      </CollapsibleSection>
 
-      {/* ── Step 5: Advance turn ── */}
+      {/* Step 5: Advance turn */}
       <button
         className={`next-btn${canAdvance && !s.turnProcessing ? '' : ' next-btn-disabled'}`}
         disabled={!canAdvance || s.turnProcessing}
@@ -94,7 +125,7 @@ export default function CenterPanel() {
         {s.turnProcessing
           ? '⏳ 정산 중…'
           : canAdvance
-            ? `다음 달로 진행 ➔`
+            ? '다음 달로 진행 ➔'
             : !s.selectedVendor
               ? '도매업체 미선택'
               : '판매가 설정 필요'}

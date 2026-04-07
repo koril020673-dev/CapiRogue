@@ -1,18 +1,77 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { fmt, fmtW, sign } from '../../utils.js';
 
-function Row({ label, value, sub }) {
+/* ── 숫자 카운트업 훅 ── */
+function useCountUp(target, duration = 700, delay = 0) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf;
+    const timer = setTimeout(() => {
+      const start = 0;
+      const startTime = performance.now();
+      const tick = (now) => {
+        const t = Math.min((now - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        setValue(Math.round(start + (target - start) * ease));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }, delay);
+    return () => { clearTimeout(timer); cancelAnimationFrame(raf); };
+  }, [target, duration, delay]);
+  return value;
+}
+
+/* ── 개별 행 (애니메이션 포함) ── */
+function AnimRow({ label, value, sub, delay = 0 }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
   return (
-    <div className="report-row">
+    <div
+      className="report-row"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateX(0)' : 'translateX(-12px)',
+        transition: 'opacity 0.25s ease, transform 0.25s ease',
+      }}
+    >
       <span className="report-label">{label}</span>
-      <span className={`report-value ${sub}`}>{value}</span>
+      <span className={`report-value ${sub || ''}`}>{value}</span>
+    </div>
+  );
+}
+
+/* ── 금액 카운트업 행 ── */
+function MoneyRow({ label, amount, sub, delay = 0 }) {
+  const animated = useCountUp(Math.abs(amount), 600, delay);
+  const sign_ = amount < 0 ? '-' : amount > 0 ? '+' : '';
+  const display = sign_ + fmtW(animated);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div
+      className="report-row"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateX(0)' : 'translateX(-12px)',
+        transition: 'opacity 0.25s ease, transform 0.25s ease',
+      }}
+    >
+      <span className="report-label">{label}</span>
+      <span className={`report-value ${sub || ''}`}>{display}</span>
     </div>
   );
 }
 
 export default function ReportModal() {
-  const d = useGameStore(s => s.modalData) || {};
+  const d          = useGameStore(s => s.modalData) || {};
   const closeModal = useGameStore(s => s.closeModal);
   const turn       = useGameStore(s => s.turn);
 
@@ -23,8 +82,27 @@ export default function ReportModal() {
     bsEffect = null,
   } = d;
 
-  const gross  = revenue - cogs;
+  const gross     = revenue - cogs;
   const operating = gross - totalFixed;
+
+  /* ── 섹션별 등장 딜레이 (ms) ── */
+  const D = {
+    s1: 0,     // 판매 섹션
+    demand: 60, sold: 110, revenue: 160,
+    s2: 260,   // 비용 섹션
+    cogs: 320, fixed: 370, extra: 420,
+    s3: 500,   // 손익 섹션
+    op: 560, net: 640,
+    btn: 750,
+  };
+
+  /* 당월 순이익 카운트업 */
+  const animNet = useCountUp(Math.abs(netProfit), 700, D.net);
+  const [netVis, setNetVis] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setNetVis(true), D.net);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="modal-box report-modal">
@@ -32,37 +110,60 @@ export default function ReportModal() {
         <h3>월간 보고서 — {turn - 1}월차</h3>
       </div>
 
-      <div className="report-section">
-        <div className="report-sub-title">판매</div>
-        <Row label="수요"      value={`${fmt(demand)} 개`} />
-        <Row label="점유율"    value={`${(shareResult.myShare * 100).toFixed(1)}%`} />
-        <Row label="판매 수량" value={`${fmt(sold)} 개`} />
-        <Row label="매출"      value={fmtW(revenue)} />
+      {/* 판매 */}
+      <div className="report-section" style={{ animationDelay: `${D.s1}ms` }}>
+        <div className="report-sub-title">📦 판매</div>
+        <AnimRow  label="시장 총 수요"  value={`${fmt(demand)} 개`}                               delay={D.demand} />
+        <AnimRow  label="점유율"        value={`${((shareResult.myShare||0)*100).toFixed(1)}%`}   delay={D.sold} />
+        <AnimRow  label="판매 수량"     value={`${fmt(sold)} 개`}                                 delay={D.sold + 30} />
+        <MoneyRow label="매출"          amount={revenue}  sub="green"                             delay={D.revenue} />
       </div>
 
+      {/* 비용 */}
       <div className="report-section">
-        <div className="report-sub-title">비용</div>
-        <Row label="매입 원가 (COGS)" value={fmtW(-cogs)} sub="red" />
-        <Row label="고정 비용"        value={fmtW(-totalFixed)} sub="red" />
-        {cartelFine > 0 && <Row label="카르텔 과징금" value={fmtW(-cartelFine)} sub="red" />}
-        {accPenalty > 0 && <Row label="산재 보상금"   value={fmtW(-accPenalty)} sub="red" />}
+        <div className="report-sub-title">💸 비용</div>
+        <MoneyRow label="매입 원가 (COGS)" amount={-cogs}       sub="red"  delay={D.cogs} />
+        <MoneyRow label="고정 비용"        amount={-totalFixed} sub="red"  delay={D.fixed} />
+        {cartelFine > 0 && <MoneyRow label="카르텔 과징금" amount={-cartelFine} sub="red" delay={D.extra} />}
+        {accPenalty > 0 && <MoneyRow label="산재 보상금"   amount={-accPenalty} sub="red" delay={D.extra + 40} />}
       </div>
 
-      <div className="report-section">
-        <div className="report-sub-title">손익</div>
-        <Row label="영업 이익" value={fmtW(operating)} sub={operating >= 0 ? 'green' : 'red'} />
-        <Row label="당월 순이익" value={sign(netProfit) + fmtW(Math.abs(netProfit))} sub={netProfit >= 0 ? 'green' : 'red'} />
+      {/* 손익 */}
+      <div className="report-section report-pnl-section">
+        <div className="report-sub-title">📊 손익</div>
+        <MoneyRow label="영업 이익"   amount={operating} sub={operating >= 0 ? 'green' : 'red'} delay={D.op} />
+        {/* 순이익은 강조 카운트업 */}
+        <div
+          className={`report-row report-net-row ${netProfit >= 0 ? 'net-pos' : 'net-neg'}`}
+          style={{
+            opacity: netVis ? 1 : 0,
+            transform: netVis ? 'scale(1)' : 'scale(0.92)',
+            transition: 'opacity 0.3s ease, transform 0.3s ease',
+          }}
+        >
+          <span className="report-label report-net-label">당월 순이익</span>
+          <span className={`report-value report-net-value ${netProfit >= 0 ? 'green' : 'red'}`}>
+            {netProfit < 0 ? '-' : '+'}{fmtW(animNet)}
+          </span>
+        </div>
       </div>
 
       {bsEffect && (
         <div className="report-section bs-note">
-          <div className="report-sub-title">블랙 스완 효과</div>
-          <p>{bsEffect.desc}</p>
+          <div className="report-sub-title">⚠️ 블랙 스완 효과</div>
+          <p style={{ fontSize: '12px', color: 'var(--dim)' }}>{bsEffect.desc}</p>
         </div>
       )}
 
-      <button className="btn btn-primary btn-block" onClick={closeModal}>
-        확인 (다음 달 계획 세우기)
+      <button
+        className="btn btn-primary btn-block"
+        onClick={closeModal}
+        style={{
+          opacity: 0,
+          animation: `fadeInUp 0.3s ease ${D.btn}ms forwards`,
+        }}
+      >
+        확인 — 다음 달 계획 세우기 →
       </button>
     </div>
   );

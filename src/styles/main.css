@@ -1135,6 +1135,79 @@ input[type="range"]:hover::-webkit-slider-thumb { background: #7cc4ff; }
 .bs-duration     { margin-top: 6px; font-size: 11px; color: var(--dim); }
 
 /* ═══════════════════════════════════════════════════════
+   COLLAPSIBLE SECTIONS
+   ═══════════════════════════════════════════════════════ */
+
+.cp-collapsible { padding: 0 !important; overflow: hidden; }
+.cp-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background .1s;
+}
+.cp-collapsible-header:hover { background: rgba(255,255,255,0.04); }
+.cp-collapsible-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cp-chevron {
+  font-size: 16px;
+  color: var(--dim);
+  transition: transform .2s ease;
+  display: inline-block;
+}
+.cp-chevron.open { transform: rotate(90deg); }
+.cp-collapsible-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: slideDown .18s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   REPORT MODAL ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+
+.report-modal { animation: modalPop .2s cubic-bezier(.22,1,.36,1); }
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 당월 순이익 강조 행 */
+.report-net-row {
+  padding: 8px 10px;
+  border-radius: var(--r);
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.net-pos { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+.net-neg { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.3); }
+.report-net-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.report-net-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.report-pnl-section { border-left: 3px solid var(--blue); }
+
+/* ═══════════════════════════════════════════════════════
    TOAST
    ═══════════════════════════════════════════════════════ */
 
