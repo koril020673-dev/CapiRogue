@@ -52,7 +52,7 @@ export default function AdvisorBar() {
   const s = useGameStore(useShallow(s => ({
     difficulty: s.difficulty, rivals: s.rivals,
     selectedVendor: s.selectedVendor, itemCategory: s.itemCategory,
-    economy: s.economy, interestRate: s.interestRate,
+    economy: s.economy, interestRate: s.effectiveInterestRate || s.interestRate,
     marketShare: s.marketShare, turn: s.turn,
   })));
 

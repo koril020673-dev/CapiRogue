@@ -225,6 +225,8 @@ export const useGameStore = create((set, get) => ({
         wholesaleOptions: result.vendors,
         itemCategory: result.itemCategory,
         currentVendorTab: 'cheap',
+        selectedVendor: null,
+        sellPrice: 0,
         aiLoading: false,
         searchStatus: `✅ "${cleanName}" 분석 완료 — 업체 ${result.vendors.length}곳 제안`,
       });
@@ -237,6 +239,8 @@ export const useGameStore = create((set, get) => ({
           wholesaleOptions: fallback.vendors,
           itemCategory: fallback.itemCategory,
           currentVendorTab: 'cheap',
+          selectedVendor: null,
+          sellPrice: 0,
           aiLoading: false,
           searchStatus: `⚠️ 오프라인 모드: "${cleanName}"`,
         });
@@ -344,6 +348,7 @@ export const useGameStore = create((set, get) => ({
   upgradeFactory: () => {
     const s = get();
     if (!s.factory.built)                         { get().addToast('공장 없음', 'warn'); return; }
+    if (s.factory.buildTurnsLeft > 0)            { get().addToast('공장 완공 후 업그레이드할 수 있습니다', 'warn'); return; }
     if (s.capital < C.FACTORY_UPGRADE_COST)       { get().addToast('자금 부족 (1억 필요)', 'warn'); return; }
     set(s2 => ({
       capital: s2.capital - C.FACTORY_UPGRADE_COST,
@@ -356,6 +361,7 @@ export const useGameStore = create((set, get) => ({
   changeProduct: () => {
     const s = get();
     if (!s.factory.built)                        { get().addToast('공장 없음', 'warn'); return; }
+    if (s.factory.buildTurnsLeft > 0)           { get().addToast('공장 완공 후 품목을 변경할 수 있습니다', 'warn'); return; }
     if (s.capital < C.FACTORY_PRODUCT_COST)      { get().addToast('자금 부족 (5천만 필요)', 'warn'); return; }
     set(s2 => ({ capital: s2.capital - C.FACTORY_PRODUCT_COST, selectedVendor: null }));
     get().addLog('품목 변경 — 새 도매업체 탐색 필요', 'info');
@@ -504,16 +510,18 @@ export const useGameStore = create((set, get) => ({
 
   _triggerBlackSwan: () => {
     const sw = BLACK_SWANS[Math.floor(Math.random() * BLACK_SWANS.length)];
+    const demandMul = sw.demandMul ?? 1;
+    const rateShock = sw.rateShock ?? 0;
     set(s2 => {
       let extra = {
         _bsActive: sw,
-        _bsTurnsLeft: C.BLACK_SWAN_TURNS,
+        _bsTurnsLeft: sw.duration || C.BLACK_SWAN_TURNS,
         _bsRecoveryLeft: 0,
-        _bsDemandMul: C.BLACK_SWAN_DEMAND_MUL,
-        _bsRateShock: C.BLACK_SWAN_RATE_SHOCK,
+        _bsDemandMul: demandMul < 1 ? demandMul : null,
+        _bsRateShock: rateShock,
         _bsTriggerChance: C.BLACK_SWAN_START_PROB,
       };
-      if (sw.id === 'storm') {
+      if (sw.forcePhase === 'recession') {
         extra = {
           ...extra,
           economy: { phase: 'recession', turnsLeft: Math.max(ECO_PHASE_DURATION.min, s2.economy.turnsLeft || ECO_PHASE_DURATION.recession) },
@@ -529,14 +537,18 @@ export const useGameStore = create((set, get) => ({
     const s = get();
     if (!s._bsActive) {
       if (s._bsRecoveryLeft > 0) {
-        const demandStep = (1 - C.BLACK_SWAN_DEMAND_MUL) / C.BLACK_SWAN_RECOVERY_TURNS;
-        const rateStep = C.BLACK_SWAN_RATE_SHOCK / C.BLACK_SWAN_RECOVERY_TURNS;
+        const currentDemandMul = s._bsDemandMul ?? 1;
+        const currentRateShock = s._bsRateShock || 0;
         const nextRecovery = s._bsRecoveryLeft - 1;
-        const nextDemandMul = Math.min(1, (s._bsDemandMul ?? 1) + demandStep);
-        const nextRateShock = Math.max(0, (s._bsRateShock || 0) - rateStep);
+        const nextDemandMul = currentDemandMul < 1
+          ? Math.min(1, currentDemandMul + ((1 - currentDemandMul) / s._bsRecoveryLeft))
+          : 1;
+        const nextRateShock = currentRateShock > 0
+          ? Math.max(0, currentRateShock - (currentRateShock / s._bsRecoveryLeft))
+          : 0;
         set({
           _bsRecoveryLeft: nextRecovery,
-          _bsDemandMul: nextRecovery > 0 ? nextDemandMul : null,
+          _bsDemandMul: nextRecovery > 0 && nextDemandMul < 1 ? nextDemandMul : null,
           _bsRateShock: nextRecovery > 0 ? nextRateShock : 0,
         });
       }
@@ -552,10 +564,11 @@ export const useGameStore = create((set, get) => ({
     }
     const newLeft = s._bsTurnsLeft - 1;
     if (newLeft <= 0) {
+      const recoveryNeeded = (s._bsDemandMul ?? 1) < 1 || (s._bsRateShock || 0) > 0;
       set({
         _bsActive: null,
         _bsTurnsLeft: 0,
-        _bsRecoveryLeft: C.BLACK_SWAN_RECOVERY_TURNS,
+        _bsRecoveryLeft: recoveryNeeded ? C.BLACK_SWAN_RECOVERY_TURNS : 0,
       });
       get().addLog(`블랙 스완 종료: ${s._bsActive.title}`, 'good');
     } else {
@@ -687,7 +700,6 @@ export const useGameStore = create((set, get) => ({
     // Turn result
     const result = calcTurnResult(get(), shareResult);
     const settleState = get();
-    const turnGrade = calcCreditGrade(netWorth(settleState));
 
     // Cartel check
     let cartelFine = 0;
@@ -698,7 +710,7 @@ export const useGameStore = create((set, get) => ({
       result.netProfit = result.gross - result.totalFixed;
       if (Math.random() < C.CARTEL_BUST_PROB) {
         cartelFine = C.CARTEL_FINE;
-        set(s2 => ({ capital: s2.capital - cartelFine, cartel: { ...s2.cartel, active: false } }));
+        set(s2 => ({ cartel: { ...s2.cartel, active: false } }));
         get().addLog('공정위 적발! 과징금 5천만', 'bad');
         get().addToast('담합 적발! 과징금 5천만 원', 'bad');
       }
@@ -713,7 +725,6 @@ export const useGameStore = create((set, get) => ({
       if (Math.random() < get().factory.accidentRisk) {
         accPenalty = C.FACTORY_ACCIDENT_PENALTY;
         set(s2 => ({
-          capital: s2.capital - accPenalty,
           _shutdownLeft: C.FACTORY_ACCIDENT_SHUTDOWN,
           factory: { ...s2.factory, accidentRisk: 0 },
         }));
@@ -806,7 +817,7 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
-    const preTaxProfit = result.netProfit - accPenalty - inventoryHoldingCost - disposalPenalty + policyDelta;
+    const preTaxProfit = result.netProfit - cartelFine - accPenalty - inventoryHoldingCost - disposalPenalty + policyDelta;
     const corporateTax = calcProgressiveTax(Math.max(0, preTaxProfit));
     const finalNetProfit = preTaxProfit - corporateTax;
 
@@ -826,9 +837,11 @@ export const useGameStore = create((set, get) => ({
       get().addLog('적자 연속 상태 해소: 신용 경계 완화', 'good');
     }
 
+    const settledNetWorth = netWorth(settleState) + finalNetProfit;
+    const settledCreditGrade = calcCreditGrade(settledNetWorth);
     const settledEffectiveRate = getLoanRateByGrade(
       settleState.interestRate,
-      turnGrade,
+      settledCreditGrade,
       (settleState._bsRateShock || 0) + nextDeficitPenalty
     );
     if (disposedUnits > 0) get().addLog(`악성 재고 강제 폐기 ${disposedUnits}개`, 'warn');
@@ -862,7 +875,7 @@ export const useGameStore = create((set, get) => ({
       marketShare: shareResult.myShare,
       inventoryLots: keptLots,
       inventoryUnits,
-      creditGrade: turnGrade,
+      creditGrade: settledCreditGrade,
       effectiveInterestRate: settledEffectiveRate,
       deficitStreak: nextDeficitStreak,
       deficitRatePenalty: nextDeficitPenalty,
@@ -970,7 +983,7 @@ export const useGameStore = create((set, get) => ({
       policyTitle,
       inflationIndex: get().inflationIndex,
       effectiveRate: settledEffectiveRate,
-      creditGrade: turnGrade,
+      creditGrade: settledCreditGrade,
       deficitStreak: nextDeficitStreak,
       deficitRatePenalty: nextDeficitPenalty,
       priceDemandMul: result.priceDemandMul,

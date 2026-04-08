@@ -19,6 +19,7 @@ export default function DifficultyScreen() {
   return (
     <div className="diff-screen">
       <div className="diff-header">
+        <div className="diff-kicker">Corporate Survival Simulation</div>
         <div className="diff-title">캐피로그 2.0</div>
         <div className="diff-sub">경제 생존 로그라이크 — 120개월 동안 회사를 운영하세요</div>
         {(meta.bankrupts > 0 || meta.clears > 0) && (

@@ -72,6 +72,8 @@ export default function LeftPanel() {
   const stage = HQ_STAGES.find(t => nw >= t.min) || HQ_STAGES[3];
   const turnPct = Math.min((s.turn / s.maxTurns) * 100, 100);
   const awarenessBonus = s.marketing?.awarenessBonus || 0;
+  const diffLabel = { easy: '이지', normal: '노멀', hard: '하드', insane: '인세인' }[s.difficulty] || '노멀';
+  const phaseLabel = { boom: '호황', stable: '안정', recession: '침체' }[s.economy.phase] || '안정';
 
   const animatedCapital = useAnimatedNumber(s.capital);
   const animatedDebt = useAnimatedNumber(s.debt);
@@ -84,34 +86,52 @@ export default function LeftPanel() {
 
   return (
     <div className="panel-left">
-      {/* Header */}
-      <div className="lp-header">
-        <div className="lp-title">
-          캐피로그
+      <div className="lp-command-card">
+        <div className="lp-kicker">Headquarters</div>
+        <div className="lp-title-row">
+          <div className="lp-title">캐피로그</div>
           <span className="lp-turn-badge">{s.turn}개월 차</span>
         </div>
+        <div className="lp-subtitle">{diffLabel} 작전 · {phaseLabel} 시장 · {stage.stage}</div>
       </div>
 
-      {/* HQ Visual */}
       <div className="hq-block">
         <div className="hq-building">{stage.emoji}</div>
         <div className="hq-stage">{stage.stage}</div>
         <div className="hq-name">{stage.name}</div>
+        <div className="lp-hero-stats">
+          <div className="lp-hero-stat">
+            <span>실효 금리</span>
+            <strong>{(s.effectiveInterestRate * 100).toFixed(1)}%</strong>
+          </div>
+          <div className="lp-hero-stat">
+            <span>신용 등급</span>
+            <strong>{grade}등급</strong>
+          </div>
+        </div>
       </div>
 
-      {/* Finance — always visible */}
       <div className="lp-body">
-        <div className="section-label">재무</div>
-        <StatRow label="보유 현금" value={fmtW(animatedCapital)} color={animatedCapital >= 0 ? 'var(--green)' : 'var(--red)'} />
-        <StatRow label="대출금"   value={fmtW(animatedDebt)}    color="var(--red)" />
-        <StatRow label="순자산"   value={fmtW(animatedNetWorth)} color={animatedNetWorth >= 0 ? 'var(--green)' : 'var(--red)'} />
+        <div className="lp-finance-grid">
+          <div className="lp-finance-card">
+            <span>보유 현금</span>
+            <strong style={{ color: animatedCapital >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtW(animatedCapital)}</strong>
+          </div>
+          <div className="lp-finance-card">
+            <span>대출금</span>
+            <strong style={{ color: 'var(--red)' }}>{fmtW(animatedDebt)}</strong>
+          </div>
+          <div className="lp-finance-card">
+            <span>순자산</span>
+            <strong style={{ color: animatedNetWorth >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtW(animatedNetWorth)}</strong>
+          </div>
+        </div>
 
         <div className="grade-row">
           <span className={`grade-letter g${grade}`}>{grade}등급</span>
           <div className="grade-detail">{gc.label} · {(s.effectiveInterestRate * 100).toFixed(1)}%</div>
         </div>
 
-        {/* Turn progress — always visible */}
         <div className="turn-progress">
           <div className="turn-bar">
             <div className="turn-fill" style={{ width: turnPct + '%' }} />
@@ -121,7 +141,6 @@ export default function LeftPanel() {
 
         <div className="divider" />
 
-        {/* Brand & Market — collapsible */}
         <Collapsible title="브랜드 · 시장" defaultOpen={true}>
           <StatRow label="브랜드"   value={s.brandValue + ' pt'} />
           <StatRow label="저항성"   value={pct(s.priceResistance)} />
@@ -133,7 +152,6 @@ export default function LeftPanel() {
 
         <div className="divider" />
 
-        {/* Details — collapsible */}
         <Collapsible title="기타 현황" defaultOpen={false}>
           <StatRow label="부동산" value={{ monthly:'월세', jeonse:'전세', owned:'자가'  }[s.realty] || '월세'} />
           <StatRow label="M&A 횟수" value={s.mna.count + '회'} />
@@ -142,7 +160,6 @@ export default function LeftPanel() {
 
         <div className="divider" />
 
-        {/* Profit chart — collapsible */}
         <Collapsible title="월별 손익" defaultOpen={true}>
           <div className="chart-wrap">
             <div className="chart-bars">

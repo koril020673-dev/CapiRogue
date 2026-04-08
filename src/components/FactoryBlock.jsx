@@ -1,17 +1,20 @@
 import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { C } from '../constants.js';
 import { fmtW } from '../utils.js';
 
 export default function FactoryBlock() {
-  const factory      = useGameStore(s => s.factory);
-  const capital      = useGameStore(s => s.capital);
-  const buildFactory  = useGameStore(s => s.buildFactory);
-  const upgradeFactory = useGameStore(s => s.upgradeFactory);
-  const changeProduct = useGameStore(s => s.changeProduct);
-  const toggleSafety  = useGameStore(s => s.toggleSafety);
+  const s = useGameStore(useShallow(state => ({
+    factory: state.factory,
+    capital: state.capital,
+    buildFactory: state.buildFactory,
+    upgradeFactory: state.upgradeFactory,
+    changeProduct: state.changeProduct,
+    toggleSafety: state.toggleSafety,
+  })));
 
-  const f = factory;
+  const f = s.factory;
   const factoryRunning = f.built && f.buildTurnsLeft <= 0;
 
   return (
@@ -20,23 +23,23 @@ export default function FactoryBlock() {
         <button
           className="factory-btn"
           disabled={f.built}
-          onClick={buildFactory}
+          onClick={s.buildFactory}
           title={`5억원 소요 · 3턴 후 완공 · 원가 -40%`}
         >
           공장 설립<small>{fmtW(C.FACTORY_BUILD_COST)}</small>
         </button>
         <button
           className="factory-btn"
-          disabled={!f.built || capital < C.FACTORY_UPGRADE_COST}
-          onClick={upgradeFactory}
+          disabled={!factoryRunning || s.capital < C.FACTORY_UPGRADE_COST}
+          onClick={s.upgradeFactory}
           title="품질 +20pt"
         >
           업그레이드<small>{fmtW(C.FACTORY_UPGRADE_COST)}</small>
         </button>
         <button
           className="factory-btn"
-          disabled={!f.built || capital < C.FACTORY_PRODUCT_COST}
-          onClick={changeProduct}
+          disabled={!factoryRunning || s.capital < C.FACTORY_PRODUCT_COST}
+          onClick={s.changeProduct}
           title="도매업체 재선택 필요"
         >
           품목 변경<small>{fmtW(C.FACTORY_PRODUCT_COST)}</small>
@@ -56,7 +59,7 @@ export default function FactoryBlock() {
       {factoryRunning && (
         <button
           className={`safety-btn${f.safetyOn ? ' safe-on' : ' safe-off'}`}
-          onClick={toggleSafety}
+          onClick={s.toggleSafety}
         >
           {f.safetyOn
             ? `안전관리비 ON (월 ${fmtW(C.FACTORY_SAFETY_COST)}) — 클릭하여 OFF`

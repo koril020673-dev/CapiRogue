@@ -53,7 +53,7 @@ export const C = {
   BLACK_SWAN_RECOVERY_TURNS: 3,
   BLACK_SWAN_START_PROB:     0.10,
   BLACK_SWAN_PROB_STEP:      0.10,
-  BLACK_SWAN_DEMAND_MUL:     0.50,
+  BLACK_SWAN_DEMAND_MUL:     0.60,
   BLACK_SWAN_RATE_SHOCK:     0.30,
 
   META_CAPITAL_BONUS_PER_BANKRUPT: 0.005,
@@ -270,6 +270,9 @@ export const BLACK_SWANS = [
     title: '글로벌 덤핑 공세',
     sub: '거대 플랫폼이 원가 이하 판매를 시작했습니다!',
     effects: ['라이벌 판매가 → 원가 ×0.5', '시장 수요 -30%', '브랜드 가치가 핵심'],
+    demandMul: 0.70,
+    rateShock: 0,
+    duration: C.BLACK_SWAN_TURNS,
     color: 'var(--purple)',
   },
   {
@@ -277,6 +280,9 @@ export const BLACK_SWANS = [
     title: '사모펀드 적대적 인수',
     sub: '순자산 5억 미만이면 즉시 경영권 탈취!',
     effects: ['매 턴 순자산 < 5억 → 즉시 인수', '10턴 지속', '자산 확보로 방어'],
+    demandMul: 1,
+    rateShock: 0,
+    duration: C.BLACK_SWAN_TURNS,
     color: 'var(--yellow)',
   },
   {
@@ -284,6 +290,10 @@ export const BLACK_SWANS = [
     title: '금리 30% 퍼펙트 스톰',
     sub: '초긴급 금리 인상 + 경기 침체 동시 발생!',
     effects: ['기준 금리 +30%p (10턴)', '불황기 강제 고정', '시장 수요 -40%'],
+    demandMul: C.BLACK_SWAN_DEMAND_MUL,
+    rateShock: C.BLACK_SWAN_RATE_SHOCK,
+    duration: C.BLACK_SWAN_TURNS,
+    forcePhase: 'recession',
     color: 'var(--red)',
   },
 ];

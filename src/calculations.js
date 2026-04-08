@@ -219,7 +219,8 @@ export function calcBEP(s) {
   const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
   const netCost  = Math.round(uc * (factoryActive ? C.FACTORY_DISCOUNT : 1.0));
   const margin   = sp - netCost;
-  const intRate  = Math.max(0.005, s.interestRate + (ECO_RATE_ADJ[s.economy.phase] || 0));
+  const baseRate = s.effectiveInterestRate || s.interestRate;
+  const intRate  = Math.max(0.005, baseRate + (ECO_RATE_ADJ[s.economy.phase] || 0));
   const monthInt = Math.round(s.debt * intRate / 12);
   const realtyRent = s.realty === 'monthly' ? C.REALTY_MONTHLY_RENT : 0;
   const safetyC  = s.factory.built && s.factory.safetyOn ? C.FACTORY_SAFETY_COST : 0;

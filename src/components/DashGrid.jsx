@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
-import { sign, fmtW } from '../utils.js';
+import { sign, pct } from '../utils.js';
 
 function useCountUp(target, duration = 600) {
   const [value, setValue] = useState(target);
@@ -21,11 +21,12 @@ function useCountUp(target, duration = 600) {
   return value;
 }
 
-function DashCell({ label, children, className = '' }) {
+function DashCell({ label, helper, children, className = '' }) {
   return (
     <div className={`dash-cell ${className}`}>
       <div className="dash-lbl">{label}</div>
       <div className="dash-val">{children}</div>
+      {helper && <div className="dash-helper">{helper}</div>}
     </div>
   );
 }
@@ -43,18 +44,18 @@ export default function DashGrid() {
 
   return (
     <div className="dash-grid">
-      <DashCell label="이번 달 순이익">
+      <DashCell label="이번 달 순이익" helper={netProfit >= 0 ? '수익 구간' : '손실 구간'}>
         <span style={{ color: netProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
           {sign(animProfit)}
         </span>
       </DashCell>
-      <DashCell label="시장 총 수요">
+      <DashCell label="시장 총 수요" helper="이번 달 전체 소비량">
         {demand > 0 ? demand.toLocaleString('ko-KR') + '개' : '–'}
       </DashCell>
-      <DashCell label="내 판매량">
+      <DashCell label="내 판매량" helper={`시장 점유율 ${pct(myShare)}`}>
         {sold > 0 ? sold.toLocaleString('ko-KR') + '개' : '–'}
       </DashCell>
-      <DashCell label="누적 총이익">
+      <DashCell label="누적 총이익" helper="장기 성과 누적치">
         <span style={{ color: cumProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
           {sign(cumProfit)}
         </span>

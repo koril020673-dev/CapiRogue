@@ -53,7 +53,6 @@ export default function ActionGuide() {
     salesTraining:    s.salesTraining,
     prodTraining:     s.prodTraining,
     mktThisTurn:      s.mktThisTurn,
-    turnProcessing:   s.turnProcessing,
   })));
 
   const steps = getSteps(s);

@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { fmtW } from '../utils.js';
 
 function estimateOemMetrics(vendor) {
@@ -17,14 +18,26 @@ function estimateOemMetrics(vendor) {
   return { defectRate, leadStability, utility };
 }
 
+function getVendorTone(type = '') {
+  const normalized = type.toLowerCase();
+  if (normalized.includes('고품질')) return 'premium';
+  if (normalized.includes('변동')) return 'volatile';
+  if (normalized.includes('실속')) return 'value';
+  return 'balanced';
+}
+
 function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel }) {
   const effectiveCost = factoryActive ? Math.round(vendor.unitCost * 0.6) : vendor.unitCost;
   const effectiveQuality = vendor.qualityScore + (factoryActive ? upgradeLevel * 20 : 0);
   const m = estimateOemMetrics(vendor);
+  const tone = getVendorTone(vendor.type);
 
   return (
-    <div className="vc-card">
-      <div className="vc-name">{vendor.name}</div>
+    <div className={`vc-card${isSelected ? ' selected' : ''}`}>
+      <div className="vc-top">
+        <div className="vc-name">{vendor.name}</div>
+        <span className={`vc-type vc-type-${tone}`}>{vendor.type || '균형형'}</span>
+      </div>
       <div className="vc-row">
         <span className="vc-lbl">도매 단가</span>
         <span className="vc-val">{fmtW(vendor.unitCost)}</span>
@@ -51,7 +64,7 @@ function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel 
         className={`vc-select-btn${isSelected ? ' selected' : ''}`}
         onClick={onSelect}
       >
-        {isSelected ? '✓ 현재 계약 중' : '이 업체와 계약하기'}
+        {isSelected ? '현재 계약 중' : '이 업체와 계약하기'}
       </button>
     </div>
   );
@@ -59,70 +72,70 @@ function VendorCard({ vendor, isSelected, onSelect, factoryActive, upgradeLevel 
 
 export default function VendorSearch() {
   const [itemName, setItemName] = useState('');
-  const inputRef = useRef(null);
 
-  const wholesaleOptions = useGameStore(s => s.wholesaleOptions);
-  const selectedVendor   = useGameStore(s => s.selectedVendor);
-  const aiLoading        = useGameStore(s => s.aiLoading);
-  const aiLoadingText    = useGameStore(s => s.aiLoadingText);
-  const searchStatus     = useGameStore(s => s.searchStatus);
-  const factory          = useGameStore(s => s.factory);
-  const searchItem       = useGameStore(s => s.searchItem);
-  const selectVendor     = useGameStore(s => s.selectVendor);
+  const s = useGameStore(useShallow(state => ({
+    wholesaleOptions: state.wholesaleOptions,
+    selectedVendor: state.selectedVendor,
+    aiLoading: state.aiLoading,
+    aiLoadingText: state.aiLoadingText,
+    searchStatus: state.searchStatus,
+    factory: state.factory,
+    searchItem: state.searchItem,
+    selectVendor: state.selectVendor,
+  })));
 
-  const factoryActive   = factory.built && factory.buildTurnsLeft <= 0;
+  const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const name = itemName.trim();
     if (!name) return;
-    searchItem(name);
+    s.searchItem(name);
   };
 
   return (
     <div className="vendor-search">
       <form className="search-form" onSubmit={handleSubmit}>
         <input
-          ref={inputRef}
           className="search-input"
           type="text"
           placeholder="판매 아이템명 입력 (예: 무선 이어폰)"
           value={itemName}
           onChange={e => setItemName(e.target.value)}
-          disabled={aiLoading}
+          disabled={s.aiLoading}
         />
-        <button type="submit" className="search-btn" disabled={aiLoading || !itemName.trim()}>
-          {aiLoading ? '…' : '탐색'}
+        <button type="submit" className="search-btn" disabled={s.aiLoading || !itemName.trim()}>
+          {s.aiLoading ? '…' : '탐색'}
         </button>
       </form>
 
-      {aiLoading && <div className="ai-loading-bar">{aiLoadingText}</div>}
-      {searchStatus && !aiLoading && <div className="search-status">{searchStatus}</div>}
+      {s.aiLoading && <div className="ai-loading-bar">{s.aiLoadingText}</div>}
+      {s.searchStatus && !s.aiLoading && <div className="search-status">{s.searchStatus}</div>}
 
-      {wholesaleOptions.length > 0 && (
+      {s.wholesaleOptions.length > 0 && (
           <div className="vendor-list">
-            {wholesaleOptions.map((vendor, idx) => (
+            {s.wholesaleOptions.map((vendor, idx) => (
             <VendorCard
               key={`${vendor.name}-${idx}`}
               vendor={vendor}
-              isSelected={selectedVendor?.name === vendor.name}
-              onSelect={() => selectVendor(vendor)}
+              isSelected={s.selectedVendor?.name === vendor.name}
+              onSelect={() => s.selectVendor(vendor)}
               factoryActive={factoryActive}
-              upgradeLevel={factory.upgradeLevel || 0}
+              upgradeLevel={s.factory.upgradeLevel || 0}
             />
             ))}
           </div>
       )}
 
-      {selectedVendor && wholesaleOptions.length > 0 && (
+      {s.selectedVendor && s.wholesaleOptions.length > 0 && (
         <div className="contract-box">
-          <div className="contract-name">{selectedVendor.name}</div>
+          <div className="contract-name">{s.selectedVendor.name}</div>
           <div className="contract-sub">
-            {selectedVendor.type ? <span>{selectedVendor.type}</span> : <span>선택형</span>}
-            &nbsp;·&nbsp;단가 {fmtW(selectedVendor.unitCost)}&nbsp;·&nbsp;품질 {selectedVendor.qualityScore}pt
+            {s.selectedVendor.type ? <span>{s.selectedVendor.type}</span> : <span>선택형</span>}
+            &nbsp;·&nbsp;단가 {fmtW(s.selectedVendor.unitCost)}&nbsp;·&nbsp;품질 {s.selectedVendor.qualityScore}pt
           </div>
-          {selectedVendor.description && (
-            <div className="contract-desc">"{selectedVendor.description}"</div>
+          {s.selectedVendor.description && (
+            <div className="contract-desc">"{s.selectedVendor.description}"</div>
           )}
         </div>
       )}

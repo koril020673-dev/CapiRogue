@@ -1,20 +1,24 @@
 import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { ECO_META } from '../constants.js';
 
 export default function EcoBanner() {
-  const turn    = useGameStore(s => s.turn);
-  const phase   = useGameStore(s => s.economy.phase);
-  const inflationIndex = useGameStore(s => s.inflationIndex || 100);
-  const rate    = useGameStore(s => s.effectiveInterestRate || s.interestRate || 0);
-  const policyTitle = useGameStore(s => s.lastTurnResult?.policyTitle || '없음');
-  const policyDelta = useGameStore(s => s.lastTurnResult?.policyDelta || 0);
-  const bsActive = useGameStore(s => s._bsActive);
-  const bsLeft  = useGameStore(s => s._bsTurnsLeft);
-  const meta = ECO_META[phase] || ECO_META.stable;
+  const s = useGameStore(useShallow(state => ({
+    turn: state.turn,
+    maxTurns: state.maxTurns,
+    phase: state.economy.phase,
+    inflationIndex: state.inflationIndex || 100,
+    rate: state.effectiveInterestRate || state.interestRate || 0,
+    policyTitle: state.lastTurnResult?.policyTitle || '없음',
+    policyDelta: state.lastTurnResult?.policyDelta || 0,
+    bsActive: state._bsActive,
+    bsLeft: state._bsTurnsLeft,
+  })));
+  const meta = ECO_META[s.phase] || ECO_META.stable;
 
-  const summary = `금리 ${(rate * 100).toFixed(1)}% · 물가지수 ${inflationIndex.toFixed(0)} · 정책 ${policyTitle}`;
-  const detail = `정책 변동: ${policyDelta >= 0 ? '+' : ''}${policyDelta.toLocaleString('ko-KR')}원`;
+  const summary = `금리 ${(s.rate * 100).toFixed(1)}% · 물가지수 ${s.inflationIndex.toFixed(0)} · 정책 ${s.policyTitle}`;
+  const detail = `정책 변동: ${s.policyDelta >= 0 ? '+' : ''}${s.policyDelta.toLocaleString('ko-KR')}원`;
 
   return (
     <div className={`eco-banner ${meta.cls}`} title={`${summary}\n${detail}`}>
@@ -24,9 +28,9 @@ export default function EcoBanner() {
         <div className="eco-desc">{summary}</div>
       </div>
       <span className="eco-badge">
-        {bsActive
-          ? `⚠ ${bsActive.title.slice(0, 8)}… ${bsLeft}턴`
-          : `T${turn} / 120`}
+        {s.bsActive
+          ? `⚠ ${s.bsActive.title.slice(0, 8)}… ${s.bsLeft}턴`
+          : `T${s.turn} / ${s.maxTurns}`}
       </span>
     </div>
   );

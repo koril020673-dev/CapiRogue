@@ -1,31 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { calcBEP, calcMktAwarenessGain, calcMktBrandGain } from '../calculations.js';
 import { C } from '../constants.js';
 import { fmtW, sign } from '../utils.js';
 
 export default function PriceBlock() {
-  const selectedVendor = useGameStore(s => s.selectedVendor);
-  const sellPrice      = useGameStore(s => s.sellPrice);
-  const setSellPrice   = useGameStore(s => s.setSellPrice);
-  const orderPlanMul   = useGameStore(s => s.orderPlanMul);
-  const setOrderPlanMul = useGameStore(s => s.setOrderPlanMul);
-  const factory        = useGameStore(s => s.factory);
-  const debt           = useGameStore(s => s.debt);
-  const interestRate   = useGameStore(s => s.interestRate);
-  const realty         = useGameStore(s => s.realty);
-  const mna            = useGameStore(s => s.mna);
-  const economy        = useGameStore(s => s.economy);
-  const monthlyFixedCost = useGameStore(s => s.monthlyFixedCost);
-  const capital = useGameStore(s => s.capital);
+  const s = useGameStore(useShallow(state => ({
+    selectedVendor: state.selectedVendor,
+    sellPrice: state.sellPrice,
+    setSellPrice: state.setSellPrice,
+    orderPlanMul: state.orderPlanMul,
+    setOrderPlanMul: state.setOrderPlanMul,
+    factory: state.factory,
+    debt: state.debt,
+    interestRate: state.interestRate,
+    effectiveInterestRate: state.effectiveInterestRate,
+    realty: state.realty,
+    mna: state.mna,
+    economy: state.economy,
+    monthlyFixedCost: state.monthlyFixedCost,
+    capital: state.capital,
+  })));
 
-  const storeState = { factory, debt, interestRate, realty, mna, economy, monthlyFixedCost, selectedVendor, sellPrice };
-  const bep = selectedVendor ? calcBEP(storeState) : null;
+  const storeState = {
+    factory: s.factory,
+    debt: s.debt,
+    interestRate: s.interestRate,
+    effectiveInterestRate: s.effectiveInterestRate,
+    realty: s.realty,
+    mna: s.mna,
+    economy: s.economy,
+    monthlyFixedCost: s.monthlyFixedCost,
+    selectedVendor: s.selectedVendor,
+    sellPrice: s.sellPrice,
+  };
+  const bep = s.selectedVendor ? calcBEP(storeState) : null;
 
-  const unitCost  = selectedVendor?.unitCost || 0;
-  const factoryActive = factory.built && factory.buildTurnsLeft <= 0;
+  const unitCost  = s.selectedVendor?.unitCost || 0;
+  const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
   const netCost   = factoryActive ? Math.round(unitCost * 0.6) : unitCost;
   const maxPrice  = Math.round(unitCost * 8);
+  const unitMargin = s.sellPrice > 0 ? s.sellPrice - netCost : 0;
 
   const pricePresets = [
     { label: '보급형', mult: 1.2, color: 'var(--green)' },
@@ -38,15 +54,30 @@ export default function PriceBlock() {
   const mktBrandGain = calcMktBrandGain(mktRefBudget);
   const mktAwareGain = calcMktAwarenessGain(mktRefBudget);
   const rdQualityGain = 20;
-  const canRd = capital >= rdRefBudget;
-  const canMkt = capital >= mktRefBudget;
+  const canRd = s.capital >= rdRefBudget;
+  const canMkt = s.capital >= mktRefBudget;
 
   return (
     <div className="price-block">
-      {!selectedVendor ? (
+      {!s.selectedVendor ? (
         <div className="price-hint">도매업체를 먼저 선택하세요</div>
       ) : (
         <>
+          <div className="price-hero">
+            <div className="price-hero-card">
+              <span>현재 판매가</span>
+              <strong>{s.sellPrice > 0 ? fmtW(s.sellPrice) : '미설정'}</strong>
+            </div>
+            <div className={`price-hero-card${unitMargin > 0 ? ' good' : s.sellPrice > 0 ? ' bad' : ''}`}>
+              <span>개당 마진</span>
+              <strong>{s.sellPrice > 0 ? sign(unitMargin) : '–'}</strong>
+            </div>
+            <div className="price-hero-card">
+              <span>권장 체크</span>
+              <strong>{bep && isFinite(bep.bep) ? `BEP ${bep.bep}개` : '가격 조정 필요'}</strong>
+            </div>
+          </div>
+
           <div className="price-hint">
             도매가: <strong>{fmtW(netCost)}</strong>
             {factoryActive && <span style={{ color: 'var(--green)', marginLeft: 6 }}>(공장 -40%)</span>}
@@ -61,7 +92,7 @@ export default function PriceBlock() {
                   key={p.label}
                   className="price-preset-btn"
                   style={{ borderColor: p.color, color: p.color }}
-                  onClick={() => setSellPrice(v)}
+                  onClick={() => s.setSellPrice(v)}
                 >
                   {p.label}<br />
                   <small>{fmtW(v)}</small>
@@ -78,8 +109,8 @@ export default function PriceBlock() {
               min={0}
               max={maxPrice}
               step={100}
-              value={sellPrice}
-              onChange={e => setSellPrice(e.target.value)}
+              value={s.sellPrice}
+              onChange={e => s.setSellPrice(e.target.value)}
             />
             <input
               type="number"
@@ -87,8 +118,8 @@ export default function PriceBlock() {
               min={0}
               max={maxPrice}
               step={100}
-              value={sellPrice || ''}
-              onChange={e => setSellPrice(e.target.value)}
+              value={s.sellPrice || ''}
+              onChange={e => s.setSellPrice(e.target.value)}
               placeholder="0"
             />
             <span className="price-unit">원</span>
@@ -102,16 +133,16 @@ export default function PriceBlock() {
                 min={0.7}
                 max={1.6}
                 step={0.05}
-                value={orderPlanMul}
-                onChange={e => setOrderPlanMul(e.target.value)}
+                value={s.orderPlanMul}
+                onChange={e => s.setOrderPlanMul(e.target.value)}
               />
-              <strong>{Math.round(orderPlanMul * 100)}%</strong>
+              <strong>{Math.round(s.orderPlanMul * 100)}%</strong>
             </div>
             <div className="order-plan-help">높게 잡으면 품절 위험은 줄지만 재고/보관비 부담이 커집니다.</div>
           </div>
 
           {/* Below cost warning */}
-          {sellPrice > 0 && sellPrice < netCost && (
+          {s.sellPrice > 0 && s.sellPrice < netCost && (
             <div className="price-warning">⛔ 판매가가 도매가보다 낮습니다</div>
           )}
 
@@ -134,7 +165,7 @@ export default function PriceBlock() {
               </div>
               <div className="bep-cell">
                 <div className="bep-lbl">마진율</div>
-                <div className="bep-val">{selectedVendor ? bep.rate + '%' : '–'}</div>
+                <div className="bep-val">{s.selectedVendor ? bep.rate + '%' : '–'}</div>
               </div>
             </div>
           )}
