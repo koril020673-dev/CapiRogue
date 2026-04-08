@@ -10,6 +10,7 @@ import {
   getActiveEffectModifier, calcMktBrandGain, calcMktAwarenessGain, getLoanRateByGrade,
 } from '../calculations.js';
 import { fetchWholesaleData, getOfflineVendors } from '../apiService.js';
+import { DEEPSEEK_CONFIG } from '../config.js';
 import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign, validateItemInput } from '../utils.js';
 
 // ── Initial state factory ─────────────────────────────────────────────────────
@@ -230,16 +231,27 @@ export const useGameStore = create((set, get) => ({
       get().addLog(`AI 분석 완료 — 후보 ${result.vendors.length}곳`, 'good');
       get().addToast('후보 업체가 생성되었습니다. 직접 비교 후 선택하세요.', 'good');
     } catch (err) {
-      const fallback = getOfflineVendors(cleanName);
+      if (DEEPSEEK_CONFIG.enableOfflineFallback) {
+        const fallback = getOfflineVendors(cleanName);
+        set({
+          wholesaleOptions: fallback.vendors,
+          itemCategory: fallback.itemCategory,
+          currentVendorTab: 'cheap',
+          aiLoading: false,
+          searchStatus: `⚠️ 오프라인 모드: "${cleanName}"`,
+        });
+        get().addLog('API 오류 — 오프라인 데이터 사용', 'warn');
+        get().addToast('API 연결 실패 → 오프라인 데이터로 대체', 'warn');
+        return;
+      }
+
       set({
-        wholesaleOptions: fallback.vendors,
-        itemCategory: fallback.itemCategory,
-        currentVendorTab: 'cheap',
+        wholesaleOptions: [],
         aiLoading: false,
-        searchStatus: `⚠️ 오프라인 모드: "${cleanName}"`,
+        searchStatus: `⛔ 반려됨: API 연결 실패 (${cleanName})`,
       });
-      get().addLog('API 오류 — 오프라인 데이터 사용', 'warn');
-      get().addToast('API 연결 실패 → 오프라인 데이터로 대체', 'warn');
+      get().addLog('API 오류 — 탐색 반려 처리', 'bad');
+      get().addToast('탐색 반려: API 연결 실패', 'bad');
     }
   },
 

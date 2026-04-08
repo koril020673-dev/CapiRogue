@@ -11,7 +11,7 @@ function extractJson(text) {
 
 export async function fetchWholesaleData(itemName) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 7000);
+  const timeoutId = setTimeout(() => controller.abort(), DEEPSEEK_CONFIG.timeoutMs || 7000);
 
   let res;
   try {
