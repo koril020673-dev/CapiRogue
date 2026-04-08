@@ -63,11 +63,21 @@ export async function fetchWholesaleData(itemName) {
   const parsed = data?.vendors
     ? data
     : JSON.parse(extractJson(data?.choices?.[0]?.message?.content || ''));
+  if (parsed?.rejected) {
+    return {
+      rejected: true,
+      reason: String(parsed.reason || '').trim() || '상위 산업 티어가 필요합니다.',
+      itemCategory: normalizeItemCategory(parsed?.itemCategory),
+      itemTier: Math.max(1, Math.min(4, Number(parsed?.itemTier) || 1)),
+      vendors: [],
+    };
+  }
   const vendors = sanitizeVendors(parsed?.vendors);
   if (vendors.length < 3) throw new Error('데이터 불완전');
 
   return {
     itemCategory: normalizeItemCategory(parsed?.itemCategory),
+    itemTier: Math.max(1, Math.min(4, Number(parsed?.itemTier) || 1)),
     vendors,
   };
 }

@@ -169,9 +169,9 @@ export const HQ_STAGES = [
 // ── Difficulty config ────────────────────────────────────────────────────────
 export const DIFF_CONFIG = {
   easy:   { capital: 100_000_000, debt: 0,          interestRate: 0.048, rivalCount: 1 },
-  normal: { capital:  50_000_000, debt: 0,          interestRate: 0.060, rivalCount: 1 },
-  hard:   { capital:  30_000_000, debt: 0,          interestRate: 0.060, rivalCount: 2 },
-  insane: { capital:  10_000_000, debt: 50_000_000, interestRate: 0.144, rivalCount: 4 },
+  normal: { capital:  50_000_000, debt: 0,          interestRate: 0.060, rivalCount: 2 },
+  hard:   { capital:  30_000_000, debt: 0,          interestRate: 0.060, rivalCount: 3 },
+  insane: { capital:  10_000_000, debt: 50_000_000, interestRate: 0.144, rivalCount: 3 },
 };
 
 export const DIFF_LABEL = { easy: '이지', normal: '노멀', hard: '하드', insane: '인세인' };

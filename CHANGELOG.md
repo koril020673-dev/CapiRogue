@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026-04-08 (설계서 v2 반영)
+
+### Core Loop
+- 산업 티어 시스템을 추가했습니다.
+  - `T1~T4` 해금 구조
+  - 티어별 불황 수요 배율 적용
+  - 상위 티어 상품 탐색 차단 및 R&D 유도 메시지 표시
+  - `src/designData.js`
+  - `src/store/useGameStore.js`
+  - `src/components/PriceBlock.jsx`
+  - `src/components/VendorSearch.jsx`
+- 설계서 기준 `품질 모드 → 발주 수량 → 판매가` 흐름을 실제 턴 계산에 연결했습니다.
+  - 보급형 / 표준형 / 프리미엄형 원가·품질 배율 반영
+  - 발주 수량 수동 입력
+  - 발주 선결제와 당월 폐기 구조 반영
+  - `src/calculations.js`
+  - `src/store/useGameStore.js`
+  - `src/components/PriceBlock.jsx`
+
+### Approval / Events
+- 결재 서류 시스템을 구현했습니다.
+  - 45종 카드 풀 추가
+  - 턴마다 3장 가중치 추첨
+  - 선택 결과를 즉시 수요/브랜드/비용/금리/라이벌 상태에 반영
+  - 결과 전용 오버레이 모달 추가
+  - `src/designData.js`
+  - `src/store/useGameStore.js`
+  - `src/components/modals/ApprovalModal.jsx`
+  - `src/components/modals/DocResultModal.jsx`
+  - `src/components/modals/ModalManager.jsx`
+  - `src/components/CenterPanel.jsx`
+
+### Rival / UI
+- 설계서의 라이벌 4인방 구조로 전환했습니다.
+  - 메가플렉스 / 아우라 / 밈캐치 / 넥서스코어
+  - 인세인에서 Tier 3 이상 시 넥서스코어 조건부 합류
+  - 라이벌 패턴별 가격/품질/재무 변동 로직 갱신
+  - `src/designData.js`
+  - `src/calculations.js`
+  - `src/store/useGameStore.js`
+  - `src/components/RightPanel.jsx`
+  - `src/components/AdvisorBar.jsx`
+- 중앙 패널을 설계서형 월간 플로우로 재구성했습니다.
+  - 탐색
+  - OEM 계약
+  - 티어/품질/발주/가격
+  - 선택 행동
+  - 결재 서류 브리핑
+  - 실행
+  - `src/components/CenterPanel.jsx`
+  - `src/components/ActionGuide.jsx`
+  - `src/components/StatusBoard.jsx`
+  - `src/styles/main.css`
+
+### API / Validation
+- AI 응답에서 `rejected`, `itemTier`를 직접 처리하도록 API 파서를 보강했습니다.
+  - `src/apiService.js`
+
+### Verification
+- `npm run build` 통과
+
 프로젝트 수정 이력을 누적 기록하는 문서입니다.
 앞으로는 최신 항목을 상단에 추가합니다.
 

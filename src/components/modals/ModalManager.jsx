@@ -9,6 +9,8 @@ import NewsModal       from './NewsModal.jsx';
 import StoryModal      from './StoryModal.jsx';
 import GameOverModal   from './GameOverModal.jsx';
 import BlackSwanModal  from './BlackSwanModal.jsx';
+import ApprovalModal   from './ApprovalModal.jsx';
+import DocResultModal  from './DocResultModal.jsx';
 
 export default function ModalManager() {
   const activeModal = useGameStore(s => s.activeModal);
@@ -24,6 +26,8 @@ export default function ModalManager() {
     'story',
     'gameover',
     'blackswan',
+    'approval',
+    'docresult',
   ].includes(activeModal);
 
   if (!isKnownModal) return null;
@@ -39,6 +43,8 @@ export default function ModalManager() {
       {activeModal === 'story'     && <StoryModal />}
       {activeModal === 'gameover'  && <GameOverModal />}
       {activeModal === 'blackswan' && <BlackSwanModal />}
+      {activeModal === 'approval'  && <ApprovalModal />}
+      {activeModal === 'docresult' && <DocResultModal />}
     </div>
   );
 }

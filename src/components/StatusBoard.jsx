@@ -2,21 +2,21 @@ import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 
 export default function StatusBoard() {
-  const effects = useGameStore(s => s.activeEffects);
+  const effects = useGameStore((state) => state.activeEffects || []);
 
   return (
     <div className="status-board">
       <div className="log-title">활성 효과</div>
       {effects.length === 0 ? (
-        <div className="log-empty">현재 적용 중인 효과가 없습니다</div>
+        <div className="log-empty">현재 유지 중인 일시 효과가 없습니다.</div>
       ) : (
-        effects.map((e, i) => (
+        effects.map((effectItem, index) => (
           <div
-            key={i}
-            className={`status-item ${e.positive ? 'status-pos' : e.positive === false ? 'status-neg' : 'status-neu'}`}
+            key={`${effectItem.source || 'effect'}-${index}`}
+            className={`status-item ${effectItem.positive ? 'status-pos' : effectItem.positive === false ? 'status-neg' : 'status-neu'}`}
           >
-            <span className="status-name">{e.name || e.label || '–'}</span>
-            <span className="status-turns">{e.turnsLeft ?? '∞'}턴</span>
+            <span className="status-name">{effectItem.label || effectItem.name || effectItem.source || '효과'}</span>
+            <span className="status-turns">{effectItem.turnsLeft ?? 0}턴</span>
           </div>
         ))
       )}

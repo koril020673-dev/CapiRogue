@@ -1,31 +1,29 @@
-import React, { useMemo, useState } from 'react';
-import { useGameStore } from '../store/useGameStore.js';
+import React, { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { PIE_COLORS, RIVAL_ARCHETYPES } from '../constants.js';
-import { pct, fmtW } from '../utils.js';
-
-const TYPE_CLASS = {
-  lowcost: 'lowcost',
-  premium: 'premium',
-  innovation: 'innovation',
-  efficient: 'efficient',
-};
+import { useGameStore } from '../store/useGameStore.js';
+import { PIE_COLORS } from '../constants.js';
+import { RIVAL_BLUEPRINTS } from '../designData.js';
+import { fmtW, pct } from '../utils.js';
 
 function PieChart({ myShare, rivals }) {
   const slices = [
-    { name: '나', share: myShare, color: PIE_COLORS[0] },
-    ...rivals.filter(r => !r.bankrupt).map((r, i) => ({ name: r.name, share: r.marketShare || 0, color: PIE_COLORS[1 + i] })),
-  ].filter(s => s.share > 0);
+    { name: '우리 회사', share: myShare, color: PIE_COLORS[0] },
+    ...rivals.filter((rival) => !rival.bankrupt).map((rival, index) => ({
+      name: rival.name,
+      share: rival.marketShare || 0,
+      color: PIE_COLORS[index + 1] || '#888',
+    })),
+  ].filter((item) => item.share > 0);
 
-  const total = slices.reduce((a, s) => a + s.share, 0);
+  const total = slices.reduce((sum, slice) => sum + slice.share, 0);
   const other = Math.max(0, 1 - total);
   if (other > 0.01) slices.push({ name: '기타', share: other, color: '#30363D' });
 
-  let deg = 0;
-  const stops = slices.map(sl => {
-    const start = deg;
-    deg += sl.share * 360;
-    return `${sl.color} ${start.toFixed(1)}deg ${deg.toFixed(1)}deg`;
+  let degree = 0;
+  const stops = slices.map((slice) => {
+    const start = degree;
+    degree += slice.share * 360;
+    return `${slice.color} ${start.toFixed(1)}deg ${degree.toFixed(1)}deg`;
   });
 
   return (
@@ -34,11 +32,11 @@ function PieChart({ myShare, rivals }) {
         <div className="pie-center">{(myShare * 100).toFixed(1)}%</div>
       </div>
       <div className="pie-legend">
-        {slices.map(sl => (
-          <div key={sl.name} className="pie-legend-row">
-            <div className="pie-dot" style={{ background: sl.color }} />
-            <span className="pie-name">{sl.name}</span>
-            <span className="pie-pct">{(sl.share * 100).toFixed(1)}%</span>
+        {slices.map((slice) => (
+          <div key={slice.name} className="pie-legend-row">
+            <div className="pie-dot" style={{ background: slice.color }} />
+            <span className="pie-name">{slice.name}</span>
+            <span className="pie-pct">{(slice.share * 100).toFixed(1)}%</span>
           </div>
         ))}
       </div>
@@ -47,34 +45,27 @@ function PieChart({ myShare, rivals }) {
 }
 
 export default function RightPanel() {
-  const s = useGameStore(useShallow(state => ({
+  const s = useGameStore(useShallow((state) => ({
     marketShare: state.marketShare,
     rivals: state.rivals,
     newsFeed: state.newsFeed || [],
+    itemTier: state.itemTier,
   })));
-  const [policyFilter, setPolicyFilter] = useState('all');
-  const activeRivals = useMemo(() => s.rivals.filter(r => !r.bankrupt), [s.rivals]);
+
+  const activeRivals = useMemo(() => s.rivals.filter((rival) => !rival.bankrupt), [s.rivals]);
   const topRival = useMemo(() => (
     activeRivals.reduce((best, rival) => (
       (rival.marketShare || 0) > (best?.marketShare || 0) ? rival : best
     ), null)
   ), [activeRivals]);
 
-  const filteredPolicyNews = useMemo(() => {
-    const base = s.newsFeed.filter(n => n.tag === 'policy');
-    if (policyFilter === 'all') return base;
-    if (policyFilter === 'regulation') return base.filter(n => n.type === 'bad');
-    if (policyFilter === 'subsidy') return base.filter(n => n.type === 'good');
-    return base;
-  }, [s.newsFeed, policyFilter]);
-
   return (
     <div className="panel-right">
       <div className="rp-overview">
         <div className="rp-overview-kicker">Market Intel</div>
-        <div className="rp-overview-title">경쟁 전황 브리핑</div>
+        <div className="rp-overview-title">라이벌 브리핑</div>
         <div className="rp-overview-sub">
-          활성 라이벌 {activeRivals.length}명 · 최대 위협 {topRival ? topRival.name : '없음'}
+          현재 시장 티어 T{s.itemTier || 1} · 주요 위협 {topRival ? topRival.name : '없음'}
         </div>
       </div>
 
@@ -84,39 +75,43 @@ export default function RightPanel() {
       </div>
 
       <div className="rp-card">
-        <div className="rp-title">라이벌</div>
-        <div className="rivals-list">
-          {s.rivals.length === 0 ? (
-            <div className="rivals-empty">라이벌 없음</div>
-          ) : (
-            s.rivals.map((r, index) => (
-              <div key={r.name} className={`rival-row${r.bankrupt ? ' v-dim' : ''}`}>
-                <div className="rival-dot" style={{ background: PIE_COLORS[index + 1] || '#666' }} />
-                <span className="rival-name">{r.name}{r.bankrupt ? ' 💀' : ''}</span>
-                <span className={`rival-type-badge ${TYPE_CLASS[r.archetype] || 'efficient'}`}>
-                  {RIVAL_ARCHETYPES[r.archetype]?.label || '효율형'}
-                </span>
-                <span className="rival-price">{r.sellPrice > 0 ? fmtW(r.sellPrice) : '–'}</span>
-                <span className="rival-share">{pct(r.marketShare || 0)}</span>
+        <div className="rp-title">라이벌 4인방</div>
+        <div className="rivals-list rivals-list-rich">
+          {s.rivals.map((rival, index) => {
+            const profile = RIVAL_BLUEPRINTS[rival.archetype] || RIVAL_BLUEPRINTS.aggressive;
+            return (
+              <div key={rival.name} className={`rival-rich-card${rival.bankrupt ? ' v-dim' : ''}`}>
+                <div className="rival-rich-head">
+                  <div className="rival-dot" style={{ background: PIE_COLORS[index + 1] || '#666' }} />
+                  <strong>{profile.icon} {rival.name}</strong>
+                  <span className="rival-type-badge">{profile.label}</span>
+                </div>
+                <div className="rival-rich-copy">{profile.primer}</div>
+                <div className="rival-rich-meta">강점 구간: {profile.strengthPhase}</div>
+                <div className="rival-rich-meta">파훼 포인트: {profile.weaknessHint}</div>
+                <div className="rival-rich-stats">
+                  <span>{rival.sellPrice > 0 ? fmtW(rival.sellPrice) : '미설정'}</span>
+                  <span>{pct(rival.marketShare || 0)}</span>
+                  <span>{rival.bankrupt ? '파산' : `품질 ${rival.qualityScore}pt`}</span>
+                </div>
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
       </div>
 
       <div className="rp-card">
-        <div className="rp-title">정책 이력</div>
-        <div className="policy-filter-row">
-          <button className={`policy-filter-btn${policyFilter === 'all' ? ' active' : ''}`} onClick={() => setPolicyFilter('all')}>전체</button>
-          <button className={`policy-filter-btn${policyFilter === 'regulation' ? ' active' : ''}`} onClick={() => setPolicyFilter('regulation')}>규제</button>
-          <button className={`policy-filter-btn${policyFilter === 'subsidy' ? ' active' : ''}`} onClick={() => setPolicyFilter('subsidy')}>보조금</button>
-        </div>
+        <div className="rp-title">최근 정책/뉴스</div>
         <div className="policy-history-list">
-          {filteredPolicyNews.length === 0 ? (
-            <div className="rivals-empty">정책 이벤트 없음</div>
+          {s.newsFeed.length === 0 ? (
+            <div className="rivals-empty">아직 누적된 뉴스가 없습니다.</div>
           ) : (
-            filteredPolicyNews.slice(0, 6).map(item => (
-              <div key={item.id} className={`policy-item ${item.type === 'good' ? 'good' : item.type === 'bad' ? 'bad' : 'neu'}`} title={item.body || ''}>
+            s.newsFeed.slice(0, 6).map((item) => (
+              <div
+                key={item.id}
+                className={`policy-item ${item.type === 'good' ? 'good' : item.type === 'bad' ? 'bad' : 'neu'}`}
+                title={item.body || ''}
+              >
                 <span className="policy-turn">T{item.turn}</span>
                 <span className="policy-title">{item.title}</span>
               </div>

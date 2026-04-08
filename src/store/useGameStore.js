@@ -2,16 +2,25 @@ import { create } from 'zustand';
 import {
   C, EV, ECO_WEIGHTS, DIFF_CONFIG, DIFF_LABEL, STORIES,
   BLACK_SWANS, CREDIT_GRADES, REALTY_DATA, META_DEF, META_KEY,
-  ECO_PHASE_DURATION, TAX_BRACKETS, RIVAL_ARCHETYPES, POLICY_EVENTS, DIFF_EVENT_TUNING,
+  ECO_PHASE_DURATION, TAX_BRACKETS, POLICY_EVENTS, DIFF_EVENT_TUNING,
   ADVISOR_AVATAR, ADVISOR_LABEL,
 } from '../constants.js';
 import {
-  calculateMarketShare, advanceEconomy, calcTurnResult,
+  calculateMarketShare, advanceEconomy, calcTurnResult, estimateBaseDemand,
   getActiveEffectModifier, calcMktBrandGain, calcMktAwarenessGain, getLoanRateByGrade,
 } from '../calculations.js';
 import { fetchWholesaleData, getOfflineVendors } from '../apiService.js';
 import { DEEPSEEK_CONFIG } from '../config.js';
 import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign, validateItemInput } from '../utils.js';
+import {
+  getApprovalCardPreview,
+  getQualityMeta,
+  getTierMeta,
+  guessIndustryTierFromName,
+  pickApprovalCards,
+  resolveApprovalChoice,
+  syncRivalRoster,
+} from '../designData.js';
 
 // ── Initial state factory ─────────────────────────────────────────────────────
 const INITIAL_GAME = () => ({
@@ -25,7 +34,11 @@ const INITIAL_GAME = () => ({
   maxTurns: 120,
   difficulty: null,
   gameStatus: 'playing',
+  industryTier: 1,
+  itemTier: 1,
+  qualityMode: 'standard',
   sellPrice: 0,
+  plannedOrderUnits: 0,
   orderPlanMul: C.INVENTORY_PLAN_RATIO,
   monthlyFixedCost: C.MONTHLY_FIXED_COST,
   marketShare: 0,
@@ -68,6 +81,7 @@ const INITIAL_GAME = () => ({
   _bsRateShock: 0,
   _bsTriggerChance: C.BLACK_SWAN_START_PROB,
   _boomBonus: 0,
+  approvalCardPreview: [],
 });
 
 function calcProgressiveTax(taxableIncome) {
@@ -106,6 +120,48 @@ function makeRivals(count) {
       attraction: 0,
     };
   });
+}
+
+function makeDesignRivals(difficulty, industryTier = 1, turn = 1) {
+  return syncRivalRoster([], difficulty, industryTier, turn);
+}
+
+function clampShare(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function applyApprovalResolutionToState(state, resolution) {
+  if (!resolution) return {};
+  return {
+    capital: state.capital + (resolution.capitalDelta || 0),
+    debt: Math.max(0, state.debt + (resolution.debtDelta || 0)),
+    brandValue: Math.max(0, state.brandValue + (resolution.brandDelta || 0)),
+    priceResistance: Math.max(0, Math.min(C.HR_RESIST_MAX, state.priceResistance + (resolution.resistanceDelta || 0))),
+    marketShare: clampShare((state.marketShare || 0) + (resolution.marketShareDelta || 0)),
+    marketing: {
+      ...(state.marketing || {}),
+      awarenessBonus: Math.max(0, Math.min(C.MARKETING_AWARENESS_MAX, (state.marketing?.awarenessBonus || 0) + (resolution.awarenessDelta || 0))),
+    },
+    _docDemandMul: (state._docDemandMul || 0) + (resolution.docDemandMul || 0),
+    activeEffects: [...(state.activeEffects || []), ...(resolution.activeEffects || [])],
+    factory: {
+      ...state.factory,
+      safetyOn: resolution.forceSafetyOn ? true : state.factory.safetyOn,
+      accidentRisk: Math.max(0, Math.min(1, (state.factory.accidentRisk || 0) + (resolution.accidentRiskDelta || 0))),
+    },
+    cartel: resolution.forceCartelOff ? { ...state.cartel, active: false } : state.cartel,
+    rivals: (state.rivals || []).map((rival) => {
+      if (rival.bankrupt) return rival;
+      const capital = Math.max(0, (rival.capital || 0) + (resolution.rivalCapitalDelta || 0));
+      return {
+        ...rival,
+        capital,
+        qualityScore: Math.max(40, (rival.qualityScore || 80) + (resolution.rivalQualityDelta || 0)),
+        bankrupt: capital <= 0 ? true : rival.bankrupt,
+        bankruptTurn: capital <= 0 ? state.turn : rival.bankruptTurn,
+      };
+    }),
+  };
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -169,6 +225,35 @@ export const useGameStore = create((set, get) => ({
     if (resume) resume();
   },
 
+  refreshApprovalCards: () => {
+    set({ approvalCardPreview: getApprovalCardPreview(get(), 3) });
+  },
+
+  chooseApprovalCard: (cardId, choiceId = 'act') => {
+    const s = get();
+    const cards = s.modalData?.cards || s.approvalCardPreview || [];
+    const selected = cards.find((card) => card.id === cardId);
+    if (!selected) return;
+    const result = resolveApprovalChoice(selected, choiceId, s);
+    if (!result) return;
+
+    const tone = result.tone === 'good'
+      ? 'good'
+      : result.tone === 'bad'
+        ? 'bad'
+        : result.tone === 'warn'
+          ? 'warn'
+          : 'info';
+
+    set((state) => ({
+      ...applyApprovalResolutionToState(state, result.resolution),
+      activeModal: 'docresult',
+      modalData: result,
+    }));
+    get().addLog(`결재: ${selected.title} - ${result.title}`, tone);
+    get().addToast(result.title, tone);
+  },
+
   // ── Difficulty selection ──────────────────────────────────────────────────────
   startGame: (diff) => {
     const cfg = DIFF_CONFIG[diff];
@@ -179,8 +264,19 @@ export const useGameStore = create((set, get) => ({
     const initialNW = baseCapital + 10_000_000 - cfg.debt;
     const initialGrade = calcCreditGrade(initialNW);
     const initialEffectiveRate = getLoanRateByGrade(cfg.interestRate, initialGrade, 0);
-
     const initGame = INITIAL_GAME();
+    const initialRivals = makeDesignRivals(diff, initGame.industryTier, initGame.turn);
+    const initialPreview = getApprovalCardPreview({
+      ...initGame,
+      difficulty: diff,
+      capital: baseCapital,
+      debt: cfg.debt,
+      interestRate: cfg.interestRate,
+      creditGrade: initialGrade,
+      effectiveInterestRate: initialEffectiveRate,
+      rivals: initialRivals,
+    });
+
     set({
       ...initGame,
       activeModal: null,
@@ -197,7 +293,8 @@ export const useGameStore = create((set, get) => ({
       interestRate: cfg.interestRate,
       creditGrade: initialGrade,
       effectiveInterestRate: initialEffectiveRate,
-      rivals: makeRivals(cfg.rivalCount),
+      rivals: initialRivals,
+      approvalCardPreview: initialPreview,
       _boomBonus: boomBonus,
       logs: [{ turn: 0, msg: `게임 시작: ${DIFF_LABEL[diff]}`, type: 'info', id: Date.now() }],
       toasts: [],
@@ -217,16 +314,35 @@ export const useGameStore = create((set, get) => ({
     }
 
     const cleanName = check.normalized;
+    const requiredTier = guessIndustryTierFromName(cleanName);
+    if (requiredTier > s.industryTier) {
+      const targetTier = getTierMeta(requiredTier);
+      set({ searchStatus: `${targetTier.code} 시장 상품입니다. R&D 해금 후 다시 탐색할 수 있습니다.` });
+      get().addToast(`${targetTier.name} 진입을 위해 산업 티어를 먼저 해금하세요.`, 'warn');
+      return;
+    }
     set({ aiLoading: true, aiLoadingText: `"${cleanName}" 분석 중…`, searchStatus: '⏳ 탐색 중…' });
 
     try {
       const result = await fetchWholesaleData(cleanName);
+      const marketTier = result.itemTier || requiredTier;
+      if (result.rejected) {
+        set({
+          wholesaleOptions: [],
+          aiLoading: false,
+          searchStatus: result.reason || '상위 산업 티어 해금이 필요합니다.',
+        });
+        get().addToast(result.reason || '상위 산업 티어 해금이 필요합니다.', 'warn');
+        return;
+      }
       set({
         wholesaleOptions: result.vendors,
         itemCategory: result.itemCategory,
+        itemTier: marketTier,
         currentVendorTab: 'cheap',
         selectedVendor: null,
         sellPrice: 0,
+        plannedOrderUnits: 0,
         aiLoading: false,
         searchStatus: `✅ "${cleanName}" 분석 완료 — 업체 ${result.vendors.length}곳 제안`,
       });
@@ -238,9 +354,11 @@ export const useGameStore = create((set, get) => ({
         set({
           wholesaleOptions: fallback.vendors,
           itemCategory: fallback.itemCategory,
+          itemTier: requiredTier,
           currentVendorTab: 'cheap',
           selectedVendor: null,
           sellPrice: 0,
+          plannedOrderUnits: 0,
           aiLoading: false,
           searchStatus: `⚠️ 오프라인 모드: "${cleanName}"`,
         });
@@ -261,7 +379,8 @@ export const useGameStore = create((set, get) => ({
 
   // ── Vendor selection ──────────────────────────────────────────────────────────
   selectVendor: (vendor) => {
-    set({ selectedVendor: vendor });
+    set({ selectedVendor: vendor, plannedOrderUnits: 0 });
+    get().refreshApprovalCards();
     get().addLog(`계약: ${vendor.name} — 단가 ${fmtW(vendor.unitCost)}`, 'info');
     get().addToast(`${vendor.name} 계약 완료!`, 'good');
   },
@@ -270,9 +389,33 @@ export const useGameStore = create((set, get) => ({
 
   // ── Price ─────────────────────────────────────────────────────────────────────
   setSellPrice: (v) => set({ sellPrice: Math.max(0, parseInt(v) || 0) }),
+  setQualityMode: (mode) => set({ qualityMode: getQualityMeta(mode).id }),
+  setPlannedOrderUnits: (value) => set({ plannedOrderUnits: Math.max(0, Math.round(Number(value) || 0)) }),
   setOrderPlanMul: (v) => set({
     orderPlanMul: Math.max(C.INVENTORY_PLAN_MIN_RATIO, Math.min(C.INVENTORY_PLAN_MAX_RATIO, Number(v) || C.INVENTORY_PLAN_RATIO)),
   }),
+  unlockIndustryTier: () => {
+    const s = get();
+    const nextTierId = (s.industryTier || 1) + 1;
+    const nextTier = getTierMeta(nextTierId);
+    if (!nextTier || !nextTier.unlockCost) {
+      get().addToast('이미 최고 산업 티어입니다.', 'warn');
+      return;
+    }
+    if (s.capital < nextTier.unlockCost) {
+      get().addToast(`${nextTier.code} 해금 자금이 부족합니다.`, 'warn');
+      return;
+    }
+
+    set((state) => ({
+      capital: state.capital - nextTier.unlockCost,
+      industryTier: nextTier.id,
+      rivals: syncRivalRoster(state.rivals, state.difficulty, nextTier.id, state.turn),
+    }));
+    get().addLog(`${nextTier.code} 산업 티어 해금`, 'good');
+    get().addToast(`${nextTier.name} 시장이 열렸습니다.`, 'good');
+    get().refreshApprovalCards();
+  },
 
   // ── HR ────────────────────────────────────────────────────────────────────────
   doSalesTrain: () => {
@@ -580,7 +723,7 @@ export const useGameStore = create((set, get) => ({
   // ── Main turn flow ────────────────────────────────────────────────────────────
   runTurn: async () => {
     const s = get();
-    if (!s.selectedVendor || s.sellPrice <= 0) return;
+    if (!s.selectedVendor || s.sellPrice <= 0 || (s.plannedOrderUnits || 0) <= 0) return;
     if (s.gameStatus !== 'playing') return;
     if (s.turnProcessing) return;
 
@@ -693,6 +836,14 @@ export const useGameStore = create((set, get) => ({
       }));
     }
 
+    const approvalCards = pickApprovalCards(get(), 3);
+    set({ approvalCardPreview: approvalCards });
+    await new Promise(resolve => set({
+      activeModal: 'approval',
+      modalData: { cards: approvalCards },
+      _resumeTurn: resolve,
+    }));
+
     // Market share calculation
     const shareResult = calculateMarketShare(get(), type => getActiveEffectModifier(get().activeEffects, type));
     if (!shareResult) { set({ turnProcessing: false }); return; }
@@ -733,48 +884,11 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
-    // Inventory aging / holding / disposal
-    const baseLots = (get().inventoryLots || []).map(lot => ({
-      ...lot,
-      age: (lot.age || 0) + 1,
-    }));
-    if (result.plannedProduction > 0) {
-      baseLots.push({ units: result.plannedProduction, age: 0, unitCost: result.netCost });
-    }
-    baseLots.sort((a, b) => b.age - a.age);
-
-    let toSell = result.sold;
-    const lotsAfterSell = [];
-    for (const lot of baseLots) {
-      if (toSell <= 0) {
-        lotsAfterSell.push(lot);
-        continue;
-      }
-      const used = Math.min(lot.units, toSell);
-      toSell -= used;
-      const left = lot.units - used;
-      if (left > 0) lotsAfterSell.push({ ...lot, units: left });
-    }
-
-    let disposalPenalty = 0;
-    let disposedUnits = 0;
-    const keptLots = [];
-    for (const lot of lotsAfterSell) {
-      if (lot.age >= C.INVENTORY_DISPOSE_AGE) {
-        disposedUnits += lot.units;
-        disposalPenalty += Math.round(lot.units * lot.unitCost * C.INVENTORY_DISPOSE_PENALTY_RATE);
-        continue;
-      }
-      keptLots.push(lot);
-    }
-    const inventoryUnits = keptLots.reduce((sum, lot) => sum + lot.units, 0);
-    const staleUnits = keptLots
-      .filter(lot => lot.age >= C.INVENTORY_BAD_AGE)
-      .reduce((sum, lot) => sum + lot.units, 0);
-    const inventoryHoldingCost = keptLots.reduce(
-      (sum, lot) => sum + Math.round(lot.units * lot.unitCost * C.INVENTORY_HOLD_COST_RATE),
-      0
-    );
+    const disposalPenalty = result.disposalPenalty || 0;
+    const disposedUnits = result.disposedUnits || 0;
+    const inventoryUnits = 0;
+    const staleUnits = 0;
+    const inventoryHoldingCost = 0;
 
     // Policy event (small/frequent, capped to 15% of net worth)
     let policyDelta = 0;
@@ -873,15 +987,16 @@ export const useGameStore = create((set, get) => ({
       cumulativeProfit: s2.cumulativeProfit + finalNetProfit,
       profitHistory: [...s2.profitHistory, finalNetProfit].slice(-12),
       marketShare: shareResult.myShare,
-      inventoryLots: keptLots,
-      inventoryUnits,
+      inventoryLots: [],
+      inventoryUnits: 0,
       creditGrade: settledCreditGrade,
       effectiveInterestRate: settledEffectiveRate,
       deficitStreak: nextDeficitStreak,
       deficitRatePenalty: nextDeficitPenalty,
       // Update rivals from share result
       rivals: (() => {
-        const updRivals = s2.rivals.map(rv => {
+        const roster = syncRivalRoster(s2.rivals, s2.difficulty, s2.industryTier, s2.turn);
+        const updRivals = roster.map(rv => {
           const updated = shareResult.updatedRivals?.find(r => r.name === rv.name);
           return updated ? { ...rv, ...updated } : rv;
         });
@@ -889,11 +1004,19 @@ export const useGameStore = create((set, get) => ({
         return updRivals.map(rv => {
           if (rv.bankrupt) return rv;
           const rvSold = Math.round(result.demand * (rv.marketShare || 0));
-          const rvUnitCost = (s2.selectedVendor?.unitCost || 30000) * (rv.archetype === 'lowcost' ? 0.8 : 1.0);
+          const rvUnitCost = (s2.selectedVendor?.unitCost || 30000) * (
+            rv.archetype === 'aggressive'
+              ? 0.82
+              : rv.archetype === 'premium'
+                ? 1.10
+                : rv.archetype === 'techmonopoly'
+                  ? 1.25
+                  : 0.95
+          );
           let rvProfit = rvSold * (rv.sellPrice - rvUnitCost) - 500_000;
-          if (rv.archetype === 'innovation' && s2._bsActive && Math.random() < (rv.crisisBankruptRisk || 0.04)) {
-            rvProfit -= 50_000_000;
-          }
+          if (rv.archetype === 'volatile' && Math.random() < 0.25) rvProfit -= 20_000_000;
+          if (rv.archetype === 'premium' && s2.economy.phase === 'recession') rvProfit -= 15_000_000;
+          if (rv.archetype === 'techmonopoly' && (s2.itemTier || 1) >= 3) rvProfit += 20_000_000;
           const newCapital = (rv.capital || 20_000_000) + rvProfit;
           if (newCapital <= 0) return { ...rv, capital: 0, bankrupt: true, bankruptTurn: s2.turn };
           return { ...rv, capital: newCapital };
@@ -928,20 +1051,13 @@ export const useGameStore = create((set, get) => ({
 
     // Rival lifecycle
     set(s2 => ({
-      rivals: s2.rivals.map(rv => {
+      rivals: syncRivalRoster(s2.rivals, s2.difficulty, s2.industryTier, s2.turn).map(rv => {
         if (!rv.bankrupt || !rv.bankruptTurn) return rv;
         if (s2.turn - rv.bankruptTurn < 2 + Math.floor(Math.random() * 2)) return rv;
         get().addLog(`${rv.name} 신규 경쟁사로 재진입!`, 'warn');
-        const archetypes = ['lowcost', 'premium', 'innovation', 'efficient'];
-        const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
-        return {
-          name: rv.name, capital: 15_000_000 + Math.floor(Math.random() * 15_000_000),
-          brandValue: Math.floor(Math.random() * 15), priceResistance: 0.02, marketShare: 0,
-          archetype,
-          ...RIVAL_ARCHETYPES[archetype],
-          sellPrice: 0, qualityScore: 70 + Math.floor(Math.random() * 70),
-          bankrupt: false, bankruptTurn: 0, attraction: 0,
-        };
+        const revived = syncRivalRoster([], s2.difficulty, s2.industryTier, s2.turn)
+          .find(item => item.archetype === rv.archetype);
+        return revived ? { ...revived, name: rv.name } : rv;
       }),
     }));
 
@@ -1006,8 +1122,10 @@ export const useGameStore = create((set, get) => ({
       prodTraining:  { ...s2.prodTraining,  usedThisTurn: false },
       mktThisTurn: false,
       hr: { ...s2.hr, trainingThisTurn: 0 },
+      plannedOrderUnits: 0,
       _docDemandMul: 0,
     }));
+    get().refreshApprovalCards();
 
     if (queuedNews) {
       await new Promise(resolve => set({ activeModal: 'news', modalData: queuedNews, _resumeTurn: resolve }));
