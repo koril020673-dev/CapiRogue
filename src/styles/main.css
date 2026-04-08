@@ -577,6 +577,17 @@ button, input, select, textarea {
 .price-unit  { color: var(--dim); font-size: 11px; }
 .price-warning { font-size: 11px; color: var(--red); font-weight: 600; }
 
+.order-plan-box {
+  background: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.order-plan-title { font-size: 11px; color: var(--text); font-weight: 700; margin-bottom: 4px; }
+.order-plan-row { display: flex; align-items: center; gap: 8px; }
+.order-plan-row input[type="range"] { flex: 1; }
+.order-plan-help { font-size: 10px; color: var(--dim); margin-top: 3px; }
+
 .bep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .bep-cell {
   background: var(--s3);

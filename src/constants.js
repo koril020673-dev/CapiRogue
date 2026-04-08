@@ -25,10 +25,17 @@ export const C = {
   DEMAND_MAX_MUL:            1.80,
 
   INVENTORY_PLAN_RATIO:      1.10,
+  INVENTORY_PLAN_MIN_RATIO:  0.70,
+  INVENTORY_PLAN_MAX_RATIO:  1.60,
   INVENTORY_BAD_AGE:         3,
   INVENTORY_DISPOSE_AGE:     5,
   INVENTORY_HOLD_COST_RATE:  0.05,
   INVENTORY_DISPOSE_PENALTY_RATE: 0.10,
+
+  MACRO_NEWS_PROB:           0.12,
+  INFLATION_BASE:            100,
+  INFLATION_MIN:             80,
+  INFLATION_MAX:             180,
 
   MONTHLY_FIXED_COST:        500_000,
   REALTY_MONTHLY_RENT:       1_000_000,
@@ -174,6 +181,29 @@ export const DIFF_DEMAND_ELASTICITY = {
   normal: 1.00,
   hard: 1.15,
   insane: 1.30,
+};
+
+export const DIFF_EVENT_TUNING = {
+  easy: {
+    macroProbMul: 0.80,
+    policyProbMul: 0.80,
+    shockMul: 0.75,
+  },
+  normal: {
+    macroProbMul: 1.00,
+    policyProbMul: 1.00,
+    shockMul: 1.00,
+  },
+  hard: {
+    macroProbMul: 1.20,
+    policyProbMul: 1.15,
+    shockMul: 1.15,
+  },
+  insane: {
+    macroProbMul: 1.35,
+    policyProbMul: 1.25,
+    shockMul: 1.30,
+  },
 };
 
 export const POLICY_EVENTS = {

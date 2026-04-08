@@ -8,6 +8,8 @@ export default function PriceBlock() {
   const selectedVendor = useGameStore(s => s.selectedVendor);
   const sellPrice      = useGameStore(s => s.sellPrice);
   const setSellPrice   = useGameStore(s => s.setSellPrice);
+  const orderPlanMul   = useGameStore(s => s.orderPlanMul);
+  const setOrderPlanMul = useGameStore(s => s.setOrderPlanMul);
   const factory        = useGameStore(s => s.factory);
   const debt           = useGameStore(s => s.debt);
   const interestRate   = useGameStore(s => s.interestRate);
@@ -90,6 +92,22 @@ export default function PriceBlock() {
               placeholder="0"
             />
             <span className="price-unit">원</span>
+          </div>
+
+          <div className="order-plan-box">
+            <div className="order-plan-title">발주 수량 계획 (수요 대비)</div>
+            <div className="order-plan-row">
+              <input
+                type="range"
+                min={0.7}
+                max={1.6}
+                step={0.05}
+                value={orderPlanMul}
+                onChange={e => setOrderPlanMul(e.target.value)}
+              />
+              <strong>{Math.round(orderPlanMul * 100)}%</strong>
+            </div>
+            <div className="order-plan-help">높게 잡으면 품절 위험은 줄지만 재고/보관비 부담이 커집니다.</div>
           </div>
 
           {/* Below cost warning */}

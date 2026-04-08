@@ -180,7 +180,8 @@ export function calcTurnResult(s, shareResult) {
 
   const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
   const openingInventory = s.inventoryUnits || 0;
-  const plannedProduction = Math.max(0, Math.round(demand * C.INVENTORY_PLAN_RATIO));
+  const planMul = Math.max(C.INVENTORY_PLAN_MIN_RATIO, Math.min(C.INVENTORY_PLAN_MAX_RATIO, s.orderPlanMul || C.INVENTORY_PLAN_RATIO));
+  const plannedProduction = Math.max(0, Math.round(demand * planMul));
   const availableUnits = openingInventory + plannedProduction;
   const targetSold = s._shutdownLeft > 0 ? 0 : Math.round(demand * shareResult.myShare);
   const sold = Math.min(targetSold, availableUnits);

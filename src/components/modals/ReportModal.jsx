@@ -83,6 +83,7 @@ export default function ReportModal() {
     staleUnits = 0, inventoryUnits = 0, policyDelta = 0, policyTitle = '',
     effectiveRate = 0, creditGrade = 'D',
     deficitStreak = 0, deficitRatePenalty = 0,
+    inflationIndex = 100,
     bsEffect = null,
   } = d;
 
@@ -160,6 +161,7 @@ export default function ReportModal() {
         <AnimRow label="정책 이벤트" value={policyTitle || '없음'} delay={D.op + 20} />
         {policyTitle && <MoneyRow label="정책 영향" amount={policyDelta} sub={policyDelta >= 0 ? 'green' : 'red'} delay={D.op + 40} />}
         <AnimRow label="대출 등급/금리" value={`${creditGrade} / ${(effectiveRate * 100).toFixed(1)}%`} delay={D.op + 60} />
+        <AnimRow label="물가 지수" value={`${inflationIndex.toFixed(0)}`} delay={D.op + 65} />
         <AnimRow label="연속 적자/가산" value={`${deficitStreak}턴 / +${(deficitRatePenalty * 100).toFixed(1)}%p`} delay={D.op + 70} />
         <AnimRow label="잔여 재고" value={`${fmt(inventoryUnits)}개 (악성 ${fmt(staleUnits)}개)`} delay={D.op + 80} />
       </div>

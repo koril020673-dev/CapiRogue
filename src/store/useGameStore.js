@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   C, EV, ECO_WEIGHTS, DIFF_CONFIG, DIFF_LABEL, STORIES,
   BLACK_SWANS, CREDIT_GRADES, REALTY_DATA, META_DEF, META_KEY,
-  ECO_PHASE_DURATION, TAX_BRACKETS, RIVAL_ARCHETYPES, POLICY_EVENTS,
+  ECO_PHASE_DURATION, TAX_BRACKETS, RIVAL_ARCHETYPES, POLICY_EVENTS, DIFF_EVENT_TUNING,
   ADVISOR_AVATAR, ADVISOR_LABEL,
 } from '../constants.js';
 import {
@@ -25,6 +25,7 @@ const INITIAL_GAME = () => ({
   difficulty: null,
   gameStatus: 'playing',
   sellPrice: 0,
+  orderPlanMul: C.INVENTORY_PLAN_RATIO,
   monthlyFixedCost: C.MONTHLY_FIXED_COST,
   marketShare: 0,
   itemCategory: 'normal',
@@ -49,6 +50,7 @@ const INITIAL_GAME = () => ({
   inventoryLots: [],
   creditGrade: 'D',
   effectiveInterestRate: 0,
+  inflationIndex: C.INFLATION_BASE,
   deficitStreak: 0,
   deficitRatePenalty: 0,
   activeEffects: [],
@@ -252,6 +254,9 @@ export const useGameStore = create((set, get) => ({
 
   // ── Price ─────────────────────────────────────────────────────────────────────
   setSellPrice: (v) => set({ sellPrice: Math.max(0, parseInt(v) || 0) }),
+  setOrderPlanMul: (v) => set({
+    orderPlanMul: Math.max(C.INVENTORY_PLAN_MIN_RATIO, Math.min(C.INVENTORY_PLAN_MAX_RATIO, Number(v) || C.INVENTORY_PLAN_RATIO)),
+  }),
 
   // ── HR ────────────────────────────────────────────────────────────────────────
   doSalesTrain: () => {
@@ -592,6 +597,67 @@ export const useGameStore = create((set, get) => ({
     const gameEnded = get()._tickBlackSwan();
     if (gameEnded || get().gameStatus !== 'playing') { set({ turnProcessing: false }); return; }
 
+    const diffTuning = DIFF_EVENT_TUNING[get().difficulty] || DIFF_EVENT_TUNING.normal;
+
+    // Random macro news: expose rate/inflation shocks with temporary effects
+    if (Math.random() < (C.MACRO_NEWS_PROB * diffTuning.macroProbMul)) {
+      const macroNewsPool = [
+        {
+          title: '중앙은행 긴축 시사',
+          body: '시장 금리 인상 기대가 확대되며 자금 조달 부담이 커집니다.',
+          icon: '🏦',
+          type: 'bad',
+          inflationDelta: 2,
+          effect: { type: EV.INTEREST, value: 0.01, turnsLeft: 2, source: 'macro_tightening' },
+        },
+        {
+          title: '원자재 가격 급등',
+          body: '원가 압박이 확대되어 물가가 상승합니다.',
+          icon: '📈',
+          type: 'bad',
+          inflationDelta: 4,
+          effect: { type: EV.COST_MUL, value: 0.04, turnsLeft: 2, source: 'macro_raw_material' },
+        },
+        {
+          title: '소비 진작책 발표',
+          body: '민간 소비 심리가 개선되어 단기 수요가 살아납니다.',
+          icon: '🛍️',
+          type: 'good',
+          inflationDelta: 1,
+          effect: { type: EV.MARKET_MUL, value: 0.08, turnsLeft: 2, source: 'macro_stimulus' },
+        },
+        {
+          title: '물가 안정 신호',
+          body: '인플레이션 압력이 완화되어 금리 부담이 일부 낮아집니다.',
+          icon: '🧊',
+          type: 'good',
+          inflationDelta: -3,
+          effect: { type: EV.INTEREST, value: -0.005, turnsLeft: 2, source: 'macro_disinflation' },
+        },
+      ];
+      const m = macroNewsPool[Math.floor(Math.random() * macroNewsPool.length)];
+      const tunedInflationDelta = Math.round(m.inflationDelta * diffTuning.shockMul);
+      const tunedEffect = {
+        ...m.effect,
+        value: typeof m.effect.value === 'number' ? m.effect.value * diffTuning.shockMul : m.effect.value,
+      };
+      set(s2 => ({
+        activeEffects: [...s2.activeEffects, tunedEffect],
+        inflationIndex: Math.max(C.INFLATION_MIN, Math.min(C.INFLATION_MAX, (s2.inflationIndex || C.INFLATION_BASE) + tunedInflationDelta)),
+      }));
+      const macroNews = {
+        title: m.title,
+        body: m.body,
+        effectDesc: `물가 지수 ${tunedInflationDelta >= 0 ? '+' : ''}${tunedInflationDelta} / 임시효과 ${tunedEffect.turnsLeft}턴`,
+        type: m.type,
+        icon: m.icon,
+        tag: 'macro',
+      };
+      get()._pushNews(macroNews, false);
+      queuedNews = queuedNews || macroNews;
+      get().addLog(`거시 뉴스: ${m.title}`, m.type === 'good' ? 'good' : 'warn');
+    }
+
     // Dumping effect: rivals sell at cost × 0.5
     const curS = get();
     if (curS._bsActive?.id === 'dumping') {
@@ -691,17 +757,22 @@ export const useGameStore = create((set, get) => ({
     let policyDelta = 0;
     let policyTitle = '';
     const nwCap = Math.max(1_000_000, Math.round(Math.max(0, netWorth(get())) * C.POLICY_NETWORTH_CAP_RATE));
-    if (Math.random() < C.POLICY_EVENT_PROB) {
+    if (Math.random() < (C.POLICY_EVENT_PROB * diffTuning.policyProbMul)) {
       const family = Math.random() < 0.5 ? 'regulation' : 'subsidy';
       const pool = POLICY_EVENTS[family] || [];
       const ev = pool[Math.floor(Math.random() * pool.length)];
       if (ev) {
         const shock = ev.shockMin + Math.random() * (ev.shockMax - ev.shockMin);
+        const tunedShock = shock * diffTuning.shockMul;
         policyTitle = ev.title;
-        policyDelta = Math.round(nwCap * shock) * (family === 'regulation' ? -1 : 1);
+        policyDelta = Math.round(nwCap * tunedShock) * (family === 'regulation' ? -1 : 1);
         if (ev.effect) {
+          const tunedPolicyEffect = {
+            ...ev.effect,
+            value: typeof ev.effect.value === 'number' ? ev.effect.value * diffTuning.shockMul : ev.effect.value,
+          };
           set(s2 => ({
-            activeEffects: [...s2.activeEffects, { ...ev.effect }],
+            activeEffects: [...s2.activeEffects, tunedPolicyEffect],
           }));
         }
         get().addLog(
@@ -885,6 +956,7 @@ export const useGameStore = create((set, get) => ({
       inventoryUnits,
       policyDelta,
       policyTitle,
+      inflationIndex: get().inflationIndex,
       effectiveRate: settledEffectiveRate,
       creditGrade: turnGrade,
       deficitStreak: nextDeficitStreak,
