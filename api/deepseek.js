@@ -3,7 +3,30 @@ const responseCache = globalThis.__deepseekCache || new Map();
 globalThis.__deepseekCache = responseCache;
 
 function buildPrompt(itemName) {
-  return `유저 검색어: "${itemName}"\n아래 JSON만 출력:\n{\n  "itemCategory": "essential|normal|luxury",\n  "vendors": [\n    {"name":"상호명","type":"전략 성격","unitCost":15000,"qualityScore":70,"description":"장점/위험 한 줄"},\n    {"name":"상호명","type":"전략 성격","unitCost":35000,"qualityScore":120,"description":"장점/위험 한 줄"},\n    {"name":"상호명","type":"전략 성격","unitCost":80000,"qualityScore":170,"description":"장점/위험 한 줄"},\n    {"name":"상호명","type":"전략 성격","unitCost":42000,"qualityScore":95,"description":"장점/위험 한 줄"}\n  ]\n}`;
+  return [
+    `Item keyword: "${itemName}"`,
+    'Return JSON only. No markdown fences. No explanation.',
+    'Schema:',
+    '{',
+    '  "itemCategory": "essential|normal|luxury",',
+    '  "itemTier": 1,',
+    '  "vendors": [',
+    '    {',
+    '      "name": "vendor name",',
+    '      "type": "budget|standard|premium|volatile",',
+    '      "unitCost": 15000,',
+    '      "qualityScore": 70,',
+    '      "description": "one short sentence"',
+    '    }',
+    '  ]',
+    '}',
+    'Rules:',
+    '- itemTier must be an integer 1..4',
+    '- Return exactly 4 vendors',
+    '- unitCost must be a positive integer',
+    '- qualityScore must be an integer 40..220',
+    '- Make the vendors meaningfully different',
+  ].join('\n');
 }
 
 export default async function handler(req, res) {
@@ -21,7 +44,7 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const model = body.model || 'deepseek-chat';
-    const itemName = (body.itemName || '').trim();
+    const itemName = String(body.itemName || '').trim();
 
     if (!itemName) {
       res.status(400).json({ error: 'itemName is required' });
@@ -59,7 +82,7 @@ export default async function handler(req, res) {
             },
           ],
           temperature: 0.3,
-          max_tokens: 280,
+          max_tokens: 320,
         }),
         signal: controller.signal,
       });
@@ -74,7 +97,6 @@ export default async function handler(req, res) {
     }
 
     responseCache.set(cacheKey, { ts: Date.now(), data });
-
     res.status(200).json(data);
   } catch (err) {
     if (err?.name === 'AbortError') {

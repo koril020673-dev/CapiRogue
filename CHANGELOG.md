@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-04-10
+
+### API / Dev Environment
+- 로컬 개발 환경에서 `/api/deepseek`가 동작하지 않던 문제를 수정했습니다.
+  - Vite 개발 서버에 `api/deepseek.js` 브리지 미들웨어 추가
+  - `vite.config.js`
+- DeepSeek 키가 없거나 API가 실패해도 아이템 탐색이 바로 반려되지 않도록 오프라인 폴백을 기본 활성화했습니다.
+  - `src/config.js`
+  - `src/store/useGameStore.js`
+- DeepSeek 프롬프트와 응답 스키마를 정리해 `itemTier`까지 포함해 반환하도록 API 핸들러를 보강했습니다.
+  - `api/deepseek.js`
+
 ## 2026-04-08 (설계서 v2 반영)
 
 ### Core Loop
