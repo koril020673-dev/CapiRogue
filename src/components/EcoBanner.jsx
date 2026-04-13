@@ -2,11 +2,13 @@ import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { useShallow } from 'zustand/react/shallow';
 import { ECO_META } from '../constants.js';
+import { getCycleTurn, getRunCycle } from '../utils.js';
 
 export default function EcoBanner() {
   const s = useGameStore(useShallow(state => ({
     turn: state.turn,
     maxTurns: state.maxTurns,
+    challenge: state.challenge,
     phase: state.economy.phase,
     inflationIndex: state.inflationIndex || 100,
     rate: state.effectiveInterestRate || state.interestRate || 0,
@@ -16,6 +18,9 @@ export default function EcoBanner() {
     bsLeft: state._bsTurnsLeft,
   })));
   const meta = ECO_META[s.phase] || ECO_META.stable;
+  const infiniteMode = Boolean(s.challenge?.infiniteMode);
+  const cycleTurn = getCycleTurn(s.turn, s.maxTurns, infiniteMode);
+  const cycle = getRunCycle(s.turn, s.maxTurns, infiniteMode);
 
   const summary = `금리 ${(s.rate * 100).toFixed(1)}% · 물가지수 ${s.inflationIndex.toFixed(0)} · 정책 ${s.policyTitle}`;
   const detail = `정책 변동: ${s.policyDelta >= 0 ? '+' : ''}${s.policyDelta.toLocaleString('ko-KR')}원`;
@@ -30,7 +35,9 @@ export default function EcoBanner() {
       <span className="eco-badge">
         {s.bsActive
           ? `⚠ ${s.bsActive.title.slice(0, 8)}… ${s.bsLeft}턴`
-          : `T${s.turn} / ${s.maxTurns}`}
+          : infiniteMode
+            ? `T${cycleTurn} / ${s.maxTurns} · Loop ${cycle}`
+            : `T${s.turn} / ${s.maxTurns}`}
       </span>
     </div>
   );

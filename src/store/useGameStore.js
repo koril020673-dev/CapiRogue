@@ -3,7 +3,8 @@ import {
   C, EV, ECO_WEIGHTS, DIFF_CONFIG, DIFF_LABEL, STORIES,
   BLACK_SWANS, CREDIT_GRADES, REALTY_DATA, META_DEF, META_KEY,
   ECO_PHASE_DURATION, TAX_BRACKETS, POLICY_EVENTS, DIFF_EVENT_TUNING,
-  ADVISOR_AVATAR, ADVISOR_LABEL,
+  ADVISOR_AVATAR, ADVISOR_LABEL, DIFF_DEMAND_ELASTICITY,
+  CUSTOM_DIFFICULTY_LIMITS, DEFAULT_MAX_TURNS, ENDLESS_MODE,
 } from '../constants.js';
 import {
   calculateMarketShare, advanceEconomy, calcTurnResult, estimateBaseDemand,
@@ -11,7 +12,17 @@ import {
 } from '../calculations.js';
 import { fetchWholesaleData, getOfflineVendors } from '../apiService.js';
 import { DEEPSEEK_CONFIG } from '../config.js';
-import { calcCreditGrade, netWorth, loadMeta, saveMeta, fmtW, sign, validateItemInput } from '../utils.js';
+import {
+  calcCreditGrade,
+  netWorth,
+  loadMeta,
+  saveMeta,
+  fmtW,
+  sign,
+  validateItemInput,
+  getRunCycle,
+  isCycleTransitionTurn,
+} from '../utils.js';
 import {
   getApprovalCardPreview,
   getQualityMeta,
@@ -22,6 +33,69 @@ import {
   syncRivalRoster,
 } from '../designData.js';
 
+function clampToRule(value, rule, fallback) {
+  const parsed = Number(value);
+  const numeric = Number.isFinite(parsed) ? parsed : fallback;
+  const stepped = Math.round(numeric / rule.step) * rule.step;
+  return Math.max(rule.min, Math.min(rule.max, stepped));
+}
+
+function buildChallengeConfig(diff = 'normal', options = {}) {
+  const preset = DIFF_CONFIG[diff] ? diff : 'normal';
+  const cfg = DIFF_CONFIG[preset];
+
+  return {
+    preset,
+    startCapital: clampToRule(options.startCapital, CUSTOM_DIFFICULTY_LIMITS.capital, cfg.capital),
+    startDebt: clampToRule(options.startDebt, CUSTOM_DIFFICULTY_LIMITS.debt, cfg.debt),
+    interestRate: clampToRule(options.interestRate, CUSTOM_DIFFICULTY_LIMITS.interestRate, cfg.interestRate),
+    rivalCount: clampToRule(options.rivalCount, CUSTOM_DIFFICULTY_LIMITS.rivalCount, cfg.rivalCount),
+    demandElasticity: clampToRule(options.demandElasticity, CUSTOM_DIFFICULTY_LIMITS.demandElasticity, DIFF_DEMAND_ELASTICITY[preset] ?? 1),
+    eventIntensity: clampToRule(options.eventIntensity, CUSTOM_DIFFICULTY_LIMITS.eventIntensity, 1),
+    infiniteMode: Boolean(options.infiniteMode),
+  };
+}
+
+function getEventTuning(state) {
+  const base = DIFF_EVENT_TUNING[state.difficulty] || DIFF_EVENT_TUNING.normal;
+  const challengeMul = state.challenge?.eventIntensity || 1;
+  const cycle = getRunCycle(state.turn, state.maxTurns, state.challenge?.infiniteMode);
+  const endlessMul = state.challenge?.infiniteMode
+    ? 1 + (Math.max(0, cycle - 1) * ENDLESS_MODE.eventIntensityPerCycle)
+    : 1;
+
+  return {
+    macroProbMul: base.macroProbMul * challengeMul * endlessMul,
+    policyProbMul: base.policyProbMul * challengeMul * endlessMul,
+    shockMul: base.shockMul * challengeMul * endlessMul,
+  };
+}
+
+function getRivalSyncOptions(state, turn = state.turn) {
+  return {
+    rivalCount: state.challenge?.rivalCount,
+    cycle: getRunCycle(turn, state.maxTurns, state.challenge?.infiniteMode),
+    infiniteMode: state.challenge?.infiniteMode,
+  };
+}
+
+function syncChallengeRivals(existingRivals = [], state, industryTier = state.industryTier, turn = state.turn) {
+  return syncRivalRoster(existingRivals, state.difficulty, industryTier, turn, getRivalSyncOptions(state, turn));
+}
+
+function boostRivalsForEndlessCycle(rivals = []) {
+  return rivals.map((rival) => {
+    if (rival.bankrupt) return rival;
+    return {
+      ...rival,
+      capital: (rival.capital || 0) + ENDLESS_MODE.rivalCapitalPerCycle,
+      brandValue: Math.max(0, (rival.brandValue || 0) + ENDLESS_MODE.rivalBrandPerCycle),
+      qualityScore: Math.min(260, (rival.qualityScore || 80) + ENDLESS_MODE.rivalQualityPerCycle),
+      priceResistance: Math.min(0.12, (rival.priceResistance || 0.02) + ENDLESS_MODE.rivalResistancePerCycle),
+    };
+  });
+}
+
 // ── Initial state factory ─────────────────────────────────────────────────────
 const INITIAL_GAME = () => ({
   capital: 100_000_000,
@@ -31,8 +105,9 @@ const INITIAL_GAME = () => ({
   brandValue: 0,
   priceResistance: 0,
   turn: 1,
-  maxTurns: 120,
+  maxTurns: DEFAULT_MAX_TURNS,
   difficulty: null,
+  challenge: buildChallengeConfig('normal'),
   gameStatus: 'playing',
   industryTier: 1,
   itemTier: 1,
@@ -122,8 +197,12 @@ function makeRivals(count) {
   });
 }
 
-function makeDesignRivals(difficulty, industryTier = 1, turn = 1) {
-  return syncRivalRoster([], difficulty, industryTier, turn);
+function makeDesignRivals(difficulty, industryTier = 1, turn = 1, challenge = buildChallengeConfig(difficulty)) {
+  return syncRivalRoster([], difficulty, industryTier, turn, {
+    rivalCount: challenge?.rivalCount,
+    cycle: getRunCycle(turn, DEFAULT_MAX_TURNS, challenge?.infiniteMode),
+    infiniteMode: challenge?.infiniteMode,
+  });
 }
 
 function clampShare(value) {
@@ -255,27 +334,43 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ── Difficulty selection ──────────────────────────────────────────────────────
-  startGame: (diff) => {
+  startGame: (diff, options = {}) => {
     const cfg = DIFF_CONFIG[diff];
+    const challenge = buildChallengeConfig(diff, options);
     const meta = loadMeta();
     const capBonus = Math.min(meta.capitalBonus || 0, C.META_CAPITAL_BONUS_MAX);
     const boomBonus = Math.min(meta.boomBonus || 0, C.META_BOOM_BONUS_MAX);
-    const baseCapital = Math.round(cfg.capital * (1 + capBonus));
-    const initialNW = baseCapital + 10_000_000 - cfg.debt;
-    const initialGrade = calcCreditGrade(initialNW);
-    const initialEffectiveRate = getLoanRateByGrade(cfg.interestRate, initialGrade, 0);
     const initGame = INITIAL_GAME();
-    const initialRivals = makeDesignRivals(diff, initGame.industryTier, initGame.turn);
+    const baseCapital = Math.round(challenge.startCapital * (1 + capBonus));
+    const initialNW = baseCapital + initGame.propertyValue - challenge.startDebt;
+    const initialGrade = calcCreditGrade(initialNW);
+    const initialEffectiveRate = getLoanRateByGrade(challenge.interestRate, initialGrade, 0);
+    const initialRivals = makeDesignRivals(diff, initGame.industryTier, initGame.turn, challenge);
     const initialPreview = getApprovalCardPreview({
       ...initGame,
       difficulty: diff,
+      challenge,
       capital: baseCapital,
-      debt: cfg.debt,
-      interestRate: cfg.interestRate,
+      debt: challenge.startDebt,
+      interestRate: challenge.interestRate,
       creditGrade: initialGrade,
       effectiveInterestRate: initialEffectiveRate,
       rivals: initialRivals,
     });
+    const isCustomRun = (
+      challenge.startCapital !== cfg.capital
+      || challenge.startDebt !== cfg.debt
+      || challenge.interestRate !== cfg.interestRate
+      || challenge.rivalCount !== cfg.rivalCount
+      || challenge.demandElasticity !== (DIFF_DEMAND_ELASTICITY[diff] ?? 1)
+      || challenge.eventIntensity !== 1
+      || challenge.infiniteMode
+    );
+    const runLabel = [
+      DIFF_LABEL[diff],
+      isCustomRun ? '커스텀' : null,
+      challenge.infiniteMode ? '무한모드' : null,
+    ].filter(Boolean).join(' · ');
 
     set({
       ...initGame,
@@ -288,15 +383,16 @@ export const useGameStore = create((set, get) => ({
       searchStatus: '',
       gamePhase: 'playing',
       difficulty: diff,
+      challenge,
       capital: baseCapital,
-      debt: cfg.debt,
-      interestRate: cfg.interestRate,
+      debt: challenge.startDebt,
+      interestRate: challenge.interestRate,
       creditGrade: initialGrade,
       effectiveInterestRate: initialEffectiveRate,
       rivals: initialRivals,
       approvalCardPreview: initialPreview,
       _boomBonus: boomBonus,
-      logs: [{ turn: 0, msg: `게임 시작: ${DIFF_LABEL[diff]}`, type: 'info', id: Date.now() }],
+      logs: [{ turn: 0, msg: `게임 시작: ${runLabel}`, type: 'info', id: Date.now() }],
       toasts: [],
     });
     if (capBonus > 0) get().addLog(`메타 보너스: 자본 +${(capBonus * 100).toFixed(1)}%`, 'good');
@@ -410,7 +506,7 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({
       capital: state.capital - nextTier.unlockCost,
       industryTier: nextTier.id,
-      rivals: syncRivalRoster(state.rivals, state.difficulty, nextTier.id, state.turn),
+      rivals: syncChallengeRivals(state.rivals, state, nextTier.id, state.turn),
     }));
     get().addLog(`${nextTier.code} 산업 티어 해금`, 'good');
     get().addToast(`${nextTier.name} 시장이 열렸습니다.`, 'good');
@@ -765,7 +861,7 @@ export const useGameStore = create((set, get) => ({
     const gameEnded = get()._tickBlackSwan();
     if (gameEnded || get().gameStatus !== 'playing') { set({ turnProcessing: false }); return; }
 
-    const diffTuning = DIFF_EVENT_TUNING[get().difficulty] || DIFF_EVENT_TUNING.normal;
+    const diffTuning = getEventTuning(get());
 
     // Random macro news: expose rate/inflation shocks with temporary effects
     if (Math.random() < (C.MACRO_NEWS_PROB * diffTuning.macroProbMul)) {
@@ -995,7 +1091,7 @@ export const useGameStore = create((set, get) => ({
       deficitRatePenalty: nextDeficitPenalty,
       // Update rivals from share result
       rivals: (() => {
-        const roster = syncRivalRoster(s2.rivals, s2.difficulty, s2.industryTier, s2.turn);
+        const roster = syncChallengeRivals(s2.rivals, s2, s2.industryTier, s2.turn);
         const updRivals = roster.map(rv => {
           const updated = shareResult.updatedRivals?.find(r => r.name === rv.name);
           return updated ? { ...rv, ...updated } : rv;
@@ -1051,11 +1147,11 @@ export const useGameStore = create((set, get) => ({
 
     // Rival lifecycle
     set(s2 => ({
-      rivals: syncRivalRoster(s2.rivals, s2.difficulty, s2.industryTier, s2.turn).map(rv => {
+      rivals: syncChallengeRivals(s2.rivals, s2, s2.industryTier, s2.turn).map(rv => {
         if (!rv.bankrupt || !rv.bankruptTurn) return rv;
         if (s2.turn - rv.bankruptTurn < 2 + Math.floor(Math.random() * 2)) return rv;
         get().addLog(`${rv.name} 신규 경쟁사로 재진입!`, 'warn');
-        const revived = syncRivalRoster([], s2.difficulty, s2.industryTier, s2.turn)
+        const revived = syncChallengeRivals([], s2, s2.industryTier, s2.turn)
           .find(item => item.archetype === rv.archetype);
         return revived ? { ...revived, name: rv.name } : rv;
       }),
@@ -1072,7 +1168,7 @@ export const useGameStore = create((set, get) => ({
     if (get()._checkBankruptcy()) { set({ turnProcessing: false }); return; }
 
     const finalS = get();
-    if (finalS.turn >= finalS.maxTurns) {
+    if (!finalS.challenge?.infiniteMode && finalS.turn >= finalS.maxTurns) {
       set({ gameStatus: 'clear' });
       get()._recordMetaEnd('clear');
       get().openModal('gameover', { type: 'clear' });
@@ -1114,18 +1210,45 @@ export const useGameStore = create((set, get) => ({
 
     get().addLog(`T${get().turn} | ${sign(finalNetProfit)} | 점유율 ${(shareResult.myShare * 100).toFixed(1)}% | 판매 ${result.sold}개`, finalNetProfit >= 0 ? 'good' : 'bad');
 
+    const nextTurnStartsCycle = finalS.challenge?.infiniteMode && isCycleTransitionTurn(finalS.turn + 1, finalS.maxTurns);
+
     // Advance turn counter and reset per-turn flags
-    set(s2 => ({
-      turn: s2.turn + 1,
-      lastTurnResult: reportData,
-      salesTraining: { ...s2.salesTraining, usedThisTurn: false },
-      prodTraining:  { ...s2.prodTraining,  usedThisTurn: false },
-      mktThisTurn: false,
-      hr: { ...s2.hr, trainingThisTurn: 0 },
-      plannedOrderUnits: 0,
-      _docDemandMul: 0,
-    }));
+    set(s2 => {
+      const nextTurn = s2.turn + 1;
+      const nextState = {
+        turn: nextTurn,
+        lastTurnResult: reportData,
+        salesTraining: { ...s2.salesTraining, usedThisTurn: false },
+        prodTraining:  { ...s2.prodTraining,  usedThisTurn: false },
+        mktThisTurn: false,
+        hr: { ...s2.hr, trainingThisTurn: 0 },
+        plannedOrderUnits: 0,
+        _docDemandMul: 0,
+      };
+
+      if (!(s2.challenge?.infiniteMode && isCycleTransitionTurn(nextTurn, s2.maxTurns))) {
+        return nextState;
+      }
+
+      return {
+        ...nextState,
+        capital: s2.capital + ENDLESS_MODE.playerCapitalPerCycle,
+        brandValue: Math.max(0, s2.brandValue + ENDLESS_MODE.playerBrandPerCycle),
+        priceResistance: Math.min(C.HR_RESIST_MAX, s2.priceResistance + ENDLESS_MODE.playerResistancePerCycle),
+        marketing: {
+          ...s2.marketing,
+          awarenessBonus: Math.min(C.MARKETING_AWARENESS_MAX, (s2.marketing?.awarenessBonus || 0) + ENDLESS_MODE.playerAwarenessPerCycle),
+        },
+        rivals: boostRivalsForEndlessCycle(s2.rivals),
+      };
+    });
     get().refreshApprovalCards();
+
+    if (nextTurnStartsCycle) {
+      const cycle = getRunCycle(get().turn, get().maxTurns, true);
+      get().addLog(`무한 모드 ${cycle}사이클 돌입: 경쟁사와 본사가 함께 강해집니다.`, 'good');
+      get().addToast(`무한 모드 ${cycle}사이클 시작`, 'good');
+    }
 
     if (queuedNews) {
       await new Promise(resolve => set({ activeModal: 'news', modalData: queuedNews, _resumeTurn: resolve }));

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { useShallow } from 'zustand/react/shallow';
 import { HQ_STAGES, CREDIT_GRADES } from '../constants.js';
-import { calcCreditGrade, netWorth, fmtW, pct, sign } from '../utils.js';
+import { calcCreditGrade, netWorth, fmtW, pct, sign, getCycleTurn, getRunCycle } from '../utils.js';
 
 function useAnimatedNumber(target, duration = 1000) {
   const [display, setDisplay] = useState(target);
@@ -62,7 +62,7 @@ export default function LeftPanel() {
     mna: s.mna, realty: s.realty, interestRate: s.interestRate,
     creditGrade: s.creditGrade, effectiveInterestRate: s.effectiveInterestRate,
     economy: s.economy, turn: s.turn, maxTurns: s.maxTurns,
-    difficulty: s.difficulty, profitHistory: s.profitHistory,
+    difficulty: s.difficulty, challenge: s.challenge, profitHistory: s.profitHistory,
     cumulativeProfit: s.cumulativeProfit,
   })));
 
@@ -70,7 +70,10 @@ export default function LeftPanel() {
   const grade = s.creditGrade || calcCreditGrade(nw);
   const gc    = CREDIT_GRADES[grade];
   const stage = HQ_STAGES.find(t => nw >= t.min) || HQ_STAGES[3];
-  const turnPct = Math.min((s.turn / s.maxTurns) * 100, 100);
+  const infiniteMode = Boolean(s.challenge?.infiniteMode);
+  const cycleTurn = getCycleTurn(s.turn, s.maxTurns, infiniteMode);
+  const cycle = getRunCycle(s.turn, s.maxTurns, infiniteMode);
+  const turnPct = Math.min((cycleTurn / s.maxTurns) * 100, 100);
   const awarenessBonus = s.marketing?.awarenessBonus || 0;
   const diffLabel = { easy: '이지', normal: '노멀', hard: '하드', insane: '인세인' }[s.difficulty] || '노멀';
   const phaseLabel = { boom: '호황', stable: '안정', recession: '침체' }[s.economy.phase] || '안정';
@@ -90,9 +93,9 @@ export default function LeftPanel() {
         <div className="lp-kicker">Headquarters</div>
         <div className="lp-title-row">
           <div className="lp-title">캐피로그</div>
-          <span className="lp-turn-badge">{s.turn}개월 차</span>
+          <span className="lp-turn-badge">{infiniteMode ? `Loop ${cycle} · ${cycleTurn}개월 차` : `${s.turn}개월 차`}</span>
         </div>
-        <div className="lp-subtitle">{diffLabel} 작전 · {phaseLabel} 시장 · {stage.stage}</div>
+        <div className="lp-subtitle">{diffLabel} 작전 · {phaseLabel} 시장 · {stage.stage}{infiniteMode ? ` · 무한모드 Loop ${cycle}` : ''}</div>
       </div>
 
       <div className="hq-block">
@@ -136,7 +139,7 @@ export default function LeftPanel() {
           <div className="turn-bar">
             <div className="turn-fill" style={{ width: turnPct + '%' }} />
           </div>
-          <div className="turn-nums">{s.turn} / {s.maxTurns}개월</div>
+          <div className="turn-nums">{infiniteMode ? `${cycleTurn} / ${s.maxTurns}개월 · Loop ${cycle}` : `${s.turn} / ${s.maxTurns}개월`}</div>
         </div>
 
         <div className="divider" />

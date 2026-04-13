@@ -17,7 +17,7 @@ export function netWorth(s) {
 }
 
 // ── Meta persistence ─────────────────────────────────────────────────────────
-import { META_KEY, META_DEF } from './constants.js';
+import { DEFAULT_MAX_TURNS, META_KEY, META_DEF } from './constants.js';
 
 export function loadMeta() {
   try { return { ...META_DEF, ...JSON.parse(localStorage.getItem(META_KEY) || '{}') }; }
@@ -92,6 +92,26 @@ export function validateItemInput(raw) {
 }
 
 // ── Animated number hook helper ───────────────────────────────────────────────
+export function getRunCycle(turn = 1, maxTurns = DEFAULT_MAX_TURNS, infiniteMode = false) {
+  if (!infiniteMode) return 1;
+  const safeTurn = Math.max(1, Math.floor(turn || 1));
+  const safeMaxTurns = Math.max(1, Math.floor(maxTurns || DEFAULT_MAX_TURNS));
+  return Math.floor((safeTurn - 1) / safeMaxTurns) + 1;
+}
+
+export function getCycleTurn(turn = 1, maxTurns = DEFAULT_MAX_TURNS, infiniteMode = false) {
+  if (!infiniteMode) return Math.max(1, Math.floor(turn || 1));
+  const safeTurn = Math.max(1, Math.floor(turn || 1));
+  const safeMaxTurns = Math.max(1, Math.floor(maxTurns || DEFAULT_MAX_TURNS));
+  return ((safeTurn - 1) % safeMaxTurns) + 1;
+}
+
+export function isCycleTransitionTurn(turn = 1, maxTurns = DEFAULT_MAX_TURNS) {
+  const safeTurn = Math.max(1, Math.floor(turn || 1));
+  const safeMaxTurns = Math.max(1, Math.floor(maxTurns || DEFAULT_MAX_TURNS));
+  return safeTurn > 1 && ((safeTurn - 1) % safeMaxTurns === 0);
+}
+
 export function animateValue(start, end, duration, callback) {
   const startTime = Date.now();
   function tick() {

@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-04-13
+
+### Difficulty / Endless Mode
+- 난이도 선택 화면을 프리셋 선택형에서 `프리셋 + 세부 튜너` 구조로 확장했습니다.
+  - 시작 자금, 시작 부채, 기준 금리, 경쟁사 수, 가격 민감도, 이벤트 강도를 직접 조절 가능
+  - 120개월 이후에도 이어지는 무한모드 체크 추가
+  - `src/components/DifficultyScreen.jsx`
+  - `src/styles/main.css`
+- 커스텀 난이도 값이 실제 게임 시작 상태와 경제 계산식에 반영되도록 연결했습니다.
+  - `src/store/useGameStore.js`
+  - `src/calculations.js`
+  - `src/constants.js`
+
+### Progression / Scaling
+- 무한모드에서 120개월 종료 대신 시즌이 반복되도록 턴 종료 조건을 확장했습니다.
+  - 사이클 전환 시 플레이어 성장 보너스 지급
+  - 경쟁사 능력치와 이벤트 강도가 사이클마다 상승
+  - 신규/부활 경쟁사도 현재 사이클 강도에 맞춰 생성
+  - `src/store/useGameStore.js`
+  - `src/designData.js`
+  - `src/utils.js`
+- HUD와 상태 표시에 무한모드 진행 정보를 반영했습니다.
+  - 루프 기준 월수, 진행 바, 종료 모달 통계 표시 보강
+  - `src/components/LeftPanel.jsx`
+  - `src/components/TimelineBar.jsx`
+  - `src/components/EcoBanner.jsx`
+  - `src/components/modals/GameOverModal.jsx`
+
+### Verification
+- `npm run build` 통과
+
 ## 2026-04-10
 
 ### API / Dev Environment

@@ -7,12 +7,13 @@ import {
   C,
   CREDIT_GRADES,
   DIFF_DEMAND_ELASTICITY,
+  ENDLESS_MODE,
 } from './constants.js';
 import {
   getQualityMeta,
   getTierDemandModifier,
 } from './designData.js';
-import { calcCreditGrade } from './utils.js';
+import { calcCreditGrade, getRunCycle } from './utils.js';
 
 const clamp = (min, value, max) => Math.max(min, Math.min(value, max));
 
@@ -47,6 +48,8 @@ export function calcMarketShares(players) {
 function nextRivalState(rival, state, playerNetCost) {
   const archetype = rival.archetype || 'aggressive';
   const playerPrice = state.sellPrice || Math.round(playerNetCost * 2);
+  const cycle = getRunCycle(state.turn, state.maxTurns, state.challenge?.infiniteMode);
+  const cycleDepth = Math.max(0, cycle - 1);
   let sellPrice = rival.sellPrice || 0;
   let qualityScore = rival.qualityScore || 80;
   let brandValue = rival.brandValue || 0;
@@ -95,10 +98,10 @@ function nextRivalState(rival, state, playerNetCost) {
     qualityScore,
     sellPrice,
     attraction: archetype === 'premium' && state.economy.phase === 'boom'
-      ? attraction * 1.1
+      ? attraction * 1.1 * (1 + (cycleDepth * ENDLESS_MODE.rivalAttractionPerCycle))
       : archetype === 'aggressive' && state.economy.phase === 'recession'
-        ? attraction * 1.08
-        : attraction,
+        ? attraction * 1.08 * (1 + (cycleDepth * ENDLESS_MODE.rivalAttractionPerCycle))
+        : attraction * (1 + (cycleDepth * ENDLESS_MODE.rivalAttractionPerCycle)),
   };
 }
 
@@ -185,12 +188,14 @@ export function getActiveEffectModifier(activeEffects, type) {
 }
 
 export function estimateBaseDemand(state, includeRandom = true) {
+  const cycle = getRunCycle(state.turn, state.maxTurns, state.challenge?.infiniteMode);
+  const cycleDepth = Math.max(0, cycle - 1);
   const ecoMul = ECO_WEIGHTS[state.itemCategory]?.[state.economy.phase] ?? 1;
   const tierMul = getTierDemandModifier(state.itemTier || state.industryTier || 1, state.economy.phase);
   const bsMul = state._bsDemandMul ?? 1;
   const referenceCost = Math.max(1, (state.selectedVendor?.unitCost || 1) * C.DEMAND_REF_PRICE_MUL);
   const priceGapRatio = ((state.sellPrice || referenceCost) - referenceCost) / referenceCost;
-  const diffElasticity = DIFF_DEMAND_ELASTICITY[state.difficulty] ?? 1;
+  const diffElasticity = state.challenge?.demandElasticity ?? DIFF_DEMAND_ELASTICITY[state.difficulty] ?? 1;
   const priceDemandMul = clamp(
     C.DEMAND_MIN_MUL,
     1 - (priceGapRatio * C.DEMAND_ELASTICITY * diffElasticity),
@@ -198,6 +203,9 @@ export function estimateBaseDemand(state, includeRandom = true) {
   );
   const evDemandMul = 1 + getActiveEffectModifier(state.activeEffects, EV.MARKET_MUL);
   const docMul = 1 + (state._docDemandMul || 0);
+  const endlessDemandMul = state.challenge?.infiniteMode
+    ? 1 + (cycleDepth * ENDLESS_MODE.demandMulPerCycle)
+    : 1;
 
   const randomMul = includeRandom ? (0.9 + Math.random() * 0.2) : 1;
   return {
@@ -207,6 +215,7 @@ export function estimateBaseDemand(state, includeRandom = true) {
     priceDemandMul,
     evDemandMul,
     docMul,
+    endlessDemandMul,
     demand: Math.round(
       C.BASE_DEMAND
       * ecoMul
@@ -215,6 +224,7 @@ export function estimateBaseDemand(state, includeRandom = true) {
       * priceDemandMul
       * Math.max(0.1, evDemandMul)
       * Math.max(0.1, docMul)
+      * endlessDemandMul
       * randomMul
     ),
   };
@@ -275,6 +285,7 @@ export function calcTurnResult(state, shareResult) {
     tierMul: demandInfo.tierMul,
     priceDemandMul: demandInfo.priceDemandMul,
     evDemandMul: demandInfo.evDemandMul,
+    endlessDemandMul: demandInfo.endlessDemandMul,
     evCostMul,
   };
 }

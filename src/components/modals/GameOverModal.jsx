@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore.js';
-import { fmtW, fmt } from '../../utils.js';
+import { fmtW, getRunCycle } from '../../utils.js';
 
 const TYPE_META = {
   bankrupt: { icon: '💸', title: '파산',          color: 'red',    sub: '자금이 바닥났습니다.' },
@@ -14,10 +14,15 @@ export default function GameOverModal() {
   const capital = useGameStore(s => s.capital);
   const cumulativeProfit = useGameStore(s => s.cumulativeProfit);
   const turn    = useGameStore(s => s.turn);
+  const maxTurns = useGameStore(s => s.maxTurns);
+  const challenge = useGameStore(s => s.challenge);
   const marketShare = useGameStore(s => s.marketShare);
 
   const type = d.type || 'bankrupt';
   const meta = TYPE_META[type] || TYPE_META.bankrupt;
+  const infiniteMode = Boolean(challenge?.infiniteMode);
+  const completedTurns = Math.max(0, turn - 1);
+  const cycle = getRunCycle(Math.max(1, turn), maxTurns, infiniteMode);
 
   return (
     <div className="modal-box gameover-modal">
@@ -36,7 +41,7 @@ export default function GameOverModal() {
         </div>
         <div className="go-stat">
           <span className="go-stat-label">진행 월수</span>
-          <span className="go-stat-value">{turn - 1} / 120개월</span>
+          <span className="go-stat-value">{infiniteMode ? `총 ${completedTurns}개월 · Loop ${cycle}` : `${completedTurns} / ${maxTurns}개월`}</span>
         </div>
         <div className="go-stat">
           <span className="go-stat-label">시장 점유율</span>

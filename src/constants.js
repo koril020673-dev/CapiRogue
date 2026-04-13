@@ -66,6 +66,32 @@ export const C = {
   POLICY_NETWORTH_CAP_RATE:  0.15,
 };
 
+export const DEFAULT_MAX_TURNS = 120;
+
+export const CUSTOM_DIFFICULTY_LIMITS = {
+  capital: { min: 10_000_000, max: 200_000_000, step: 10_000_000 },
+  debt: { min: 0, max: 100_000_000, step: 10_000_000 },
+  interestRate: { min: 0.03, max: 0.18, step: 0.002 },
+  rivalCount: { min: 1, max: 4, step: 1 },
+  demandElasticity: { min: 0.75, max: 1.55, step: 0.05 },
+  eventIntensity: { min: 0.70, max: 1.60, step: 0.05 },
+};
+
+export const ENDLESS_MODE = {
+  cycleLength: DEFAULT_MAX_TURNS,
+  demandMulPerCycle: 0.06,
+  eventIntensityPerCycle: 0.08,
+  rivalAttractionPerCycle: 0.10,
+  rivalCapitalPerCycle: 25_000_000,
+  rivalBrandPerCycle: 8,
+  rivalQualityPerCycle: 10,
+  rivalResistancePerCycle: 0.004,
+  playerCapitalPerCycle: 20_000_000,
+  playerBrandPerCycle: 6,
+  playerResistancePerCycle: 0.01,
+  playerAwarenessPerCycle: 0.02,
+};
+
 // ── Effect type keys ────────────────────────────────────────────────────────
 export const EV = {
   BRAND:       'brand_value',

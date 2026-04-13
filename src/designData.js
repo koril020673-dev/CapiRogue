@@ -1,4 +1,4 @@
-import { EV } from './constants.js';
+import { ENDLESS_MODE, EV } from './constants.js';
 
 const safeNetWorth = (state) => (state.capital || 0) + (state.propertyValue || 0) - (state.debt || 0);
 const safeCapital = (state) => Math.max(0, state.capital || 0);
@@ -223,10 +223,39 @@ const DIFFICULTY_RIVALS = {
   insane: ['aggressive', 'premium', 'volatile'],
 };
 
-function createRival(profileId, turn = 1) {
+const RIVAL_ORDER = ['aggressive', 'premium', 'volatile', 'techmonopoly'];
+
+function applyEndlessRivalScale(rival, cycle = 1, infiniteMode = false) {
+  if (!infiniteMode) return rival;
+  const cycleDepth = Math.max(0, (cycle || 1) - 1);
+  if (cycleDepth <= 0) return rival;
+
+  return {
+    ...rival,
+    capital: rival.capital + (ENDLESS_MODE.rivalCapitalPerCycle * cycleDepth),
+    brandValue: rival.brandValue + (ENDLESS_MODE.rivalBrandPerCycle * cycleDepth),
+    qualityScore: rival.qualityScore + (ENDLESS_MODE.rivalQualityPerCycle * cycleDepth),
+    priceResistance: Math.min(0.12, rival.priceResistance + (ENDLESS_MODE.rivalResistancePerCycle * cycleDepth)),
+  };
+}
+
+function getDesiredRivalIds(difficulty = 'normal', industryTier = 1, rivalCount) {
+  if (typeof rivalCount === 'number') {
+    const maxAvailable = industryTier >= 3
+      ? RIVAL_ORDER
+      : RIVAL_ORDER.filter((profileId) => profileId !== 'techmonopoly');
+    return maxAvailable.slice(0, Math.max(1, Math.floor(rivalCount)));
+  }
+
+  const desired = [...(DIFFICULTY_RIVALS[difficulty] || DIFFICULTY_RIVALS.normal)];
+  if (difficulty === 'insane' && industryTier >= 3) desired.push('techmonopoly');
+  return desired;
+}
+
+function createRival(profileId, turn = 1, options = {}) {
   const profile = RIVAL_BLUEPRINTS[profileId];
   if (!profile) return null;
-  return {
+  return applyEndlessRivalScale({
     name: profile.name,
     capital: profile.baseCapital + Math.round(Math.random() * 4_000_000),
     brandValue: profile.brandValue,
@@ -240,15 +269,13 @@ function createRival(profileId, turn = 1) {
     bankruptTurn: 0,
     attraction: 0,
     joinedTurn: turn,
-  };
+  }, options.cycle, options.infiniteMode);
 }
 
-export function syncRivalRoster(existingRivals = [], difficulty = 'normal', industryTier = 1, turn = 1) {
-  const desired = [...(DIFFICULTY_RIVALS[difficulty] || DIFFICULTY_RIVALS.normal)];
-  if (difficulty === 'insane' && industryTier >= 3) desired.push('techmonopoly');
-
+export function syncRivalRoster(existingRivals = [], difficulty = 'normal', industryTier = 1, turn = 1, options = {}) {
+  const desired = getDesiredRivalIds(difficulty, industryTier, options.rivalCount);
   return desired
-    .map((profileId) => existingRivals.find((rival) => rival.archetype === profileId || rival.name === RIVAL_BLUEPRINTS[profileId]?.name) || createRival(profileId, turn))
+    .map((profileId) => existingRivals.find((rival) => rival.archetype === profileId || rival.name === RIVAL_BLUEPRINTS[profileId]?.name) || createRival(profileId, turn, options))
     .filter(Boolean);
 }
 

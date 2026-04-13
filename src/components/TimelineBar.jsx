@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '../store/useGameStore.js';
 import { useShallow } from 'zustand/react/shallow';
+import { getCycleTurn, getRunCycle } from '../utils.js';
 
 const MARKERS = [
   { pct: 0.8,   label: '프롤로그', icon: '◆' },
@@ -20,17 +21,21 @@ export default function TimelineBar() {
   const s = useGameStore(useShallow(state => ({
     turn: state.turn,
     maxTurns: state.maxTurns,
+    challenge: state.challenge,
     bsActive: state._bsActive,
     newsFeed: state.newsFeed || [],
   })));
-  const turn = s.turn;
+  const infiniteMode = Boolean(s.challenge?.infiniteMode);
+  const turn = getCycleTurn(s.turn, s.maxTurns, infiniteMode);
+  const cycle = getRunCycle(s.turn, s.maxTurns, infiniteMode);
   const maxTurns = s.maxTurns;
   const bsActive = s.bsActive;
   const pct = Math.min((turn / maxTurns) * 100, 100);
   const timelineNews = s.newsFeed
+    .filter(n => !infiniteMode || getRunCycle(n.turn, maxTurns, true) === cycle)
     .filter(n => n.tag === 'policy' || n.tag === 'macro')
     .slice(0, 4)
-    .map(n => ({ ...n, left: Math.min(100, (n.turn / maxTurns) * 100) }));
+    .map(n => ({ ...n, left: Math.min(100, (getCycleTurn(n.turn, maxTurns, infiniteMode) / maxTurns) * 100) }));
   const campaignLabel = getCampaignLabel(turn);
 
   return (
@@ -71,7 +76,7 @@ export default function TimelineBar() {
           {bsActive ? `위기 경보 · ${bsActive.title}` : '정상 운영'}
         </span>
         <span className="tl-turn-info">
-          <strong>{turn}</strong> / {maxTurns}개월
+          <strong>{turn}</strong> / {maxTurns}개월{infiniteMode ? ` · Loop ${cycle}` : ''}
         </span>
       </div>
     </div>
