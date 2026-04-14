@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/useGameStore.js';
 import { getTierMeta } from '../designData.js';
 import { fmtW } from '../utils.js';
+import HoverHint from './HoverHint.jsx';
 
 function estimateVendorMetrics(vendor) {
   const quality = vendor.qualityScore || 80;
@@ -19,6 +20,13 @@ function estimateVendorMetrics(vendor) {
   return { defectRate, leadStability, utility };
 }
 
+function getVendorTypeClass(type = '') {
+  if (type.includes('고급')) return 'vc-type-premium';
+  if (type.includes('변동')) return 'vc-type-volatile';
+  if (type.includes('저가')) return 'vc-type-value';
+  return 'vc-type-balanced';
+}
+
 function VendorCard({ vendor, isSelected, onSelect }) {
   const metrics = estimateVendorMetrics(vendor);
 
@@ -26,7 +34,7 @@ function VendorCard({ vendor, isSelected, onSelect }) {
     <div className={`vc-card${isSelected ? ' selected' : ''}`}>
       <div className="vc-top">
         <div className="vc-name">{vendor.name}</div>
-        <span className="vc-type">{vendor.type || '표준형'}</span>
+        <span className={`vc-type ${getVendorTypeClass(vendor.type || '')}`}>{vendor.type || '표준형'}</span>
       </div>
       <div className="vc-row">
         <span className="vc-lbl">단가</span>
@@ -53,9 +61,18 @@ function VendorCard({ vendor, isSelected, onSelect }) {
       <div className="vc-row">
         <span className="vc-lbl vc-desc">{vendor.description}</span>
       </div>
-      <button type="button" className={`vc-select-btn${isSelected ? ' selected' : ''}`} onClick={onSelect}>
-        {isSelected ? '현재 계약 중' : '이 업체와 계약'}
-      </button>
+      <HoverHint
+        fill
+        title="OEM 계약"
+        description="이번 달 생산 기준이 될 공급처를 확정하는 버튼입니다. 이후 발주 수량과 판매가 계산이 이 업체 기준으로 바뀝니다."
+        pros="단가와 품질 기준이 확정돼 손익 계산과 발주 판단이 쉬워집니다."
+        cons="다른 업체로 바꾸면 발주 수량을 다시 정해야 합니다."
+        state={isSelected ? '이미 이번 달 기준 계약으로 선택된 업체입니다.' : '지금 누르면 이 업체를 이번 달 OEM 공급처로 확정합니다.'}
+      >
+        <button type="button" className={`vc-select-btn${isSelected ? ' selected' : ''}`} onClick={onSelect}>
+          {isSelected ? '현재 OEM 계약 중' : 'OEM 계약 체결'}
+        </button>
+      </HoverHint>
     </div>
   );
 }

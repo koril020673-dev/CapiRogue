@@ -5,6 +5,7 @@ import { calcBEP, calcMktAwarenessGain, calcMktBrandGain, estimateBaseDemand } f
 import { C } from '../constants.js';
 import { getQualityMeta, getTierMeta, INDUSTRY_TIERS, QUALITY_MODES } from '../designData.js';
 import { fmtW, sign } from '../utils.js';
+import HoverHint from './HoverHint.jsx';
 
 function TierCard({ tier, active, locked, onClick, disabled }) {
   return (
@@ -102,6 +103,29 @@ export default function PriceBlock() {
   const rdRefBudget = nextTier?.unlockCost || C.FACTORY_UPGRADE_COST;
   const mktBrandGain = calcMktBrandGain(mktRefBudget);
   const mktAwareGain = calcMktAwarenessGain(mktRefBudget);
+  const tierUpgradeBlocked = Boolean(nextTier?.unlockCost) && s.capital < nextTier.unlockCost;
+  const tierUpgradeState = nextTier?.unlockCost
+    ? tierUpgradeBlocked
+      ? `지금 못 누르는 이유: ${nextTier.code} 해금에는 ${fmtW(nextTier.unlockCost)}이 필요합니다.`
+      : `지금 누르면 ${nextTier.code} 시장이 즉시 해금됩니다.`
+    : '';
+  const qualityHints = {
+    budget: {
+      description: '저원가와 빠른 회전에 집중하는 운영 모드입니다.',
+      pros: '초반 자금이 적을 때 발주 부담을 줄이기 좋습니다.',
+      cons: '품질 경쟁과 프리미엄 가격 방어에는 약합니다.',
+    },
+    standard: {
+      description: '원가와 품질을 가장 균형 있게 맞춘 기본 운영 모드입니다.',
+      pros: '어느 경기 국면에서도 크게 무너지지 않는 안정형 선택입니다.',
+      cons: '특정 상황에서 압도적인 강점은 만들기 어렵습니다.',
+    },
+    premium: {
+      description: '품질과 브랜드 차별화에 집중하는 고가 전략 모드입니다.',
+      pros: '품질 경쟁력이 높아지면 높은 판매가를 정당화하기 좋습니다.',
+      cons: '원가 부담이 커져 불황이나 저가 경쟁에서 흔들릴 수 있습니다.',
+    },
+  };
 
   return (
     <div className="price-block">
@@ -116,14 +140,23 @@ export default function PriceBlock() {
           </div>
         </div>
         {nextTier?.unlockCost ? (
-          <button
-            type="button"
-            className="tier-upgrade-btn"
-            onClick={s.unlockIndustryTier}
-            disabled={s.capital < nextTier.unlockCost}
+          <HoverHint
+            title={`${nextTier.code} 산업 티어 해금`}
+            description={`${nextTier.name} 시장에 진입해 더 큰 매출과 더 높은 난도의 상품을 다룰 수 있게 됩니다.`}
+            pros="새로운 시장과 높은 매출 상한을 열 수 있습니다."
+            cons="해금 비용이 크고, 상위 티어일수록 경기 침체 영향을 더 크게 받습니다."
+            disabled={tierUpgradeBlocked}
+            state={tierUpgradeState}
           >
-            {nextTier.code} 해금 {fmtW(nextTier.unlockCost)}
-          </button>
+            <button
+              type="button"
+              className="tier-upgrade-btn"
+              onClick={s.unlockIndustryTier}
+              disabled={tierUpgradeBlocked}
+            >
+              {nextTier.code} 해금 {fmtW(nextTier.unlockCost)}
+            </button>
+          </HoverHint>
         ) : (
           <div className="tier-upgrade-done">최고 티어 도달</div>
         )}
@@ -145,16 +178,25 @@ export default function PriceBlock() {
         <div className="order-plan-title">품질 모드</div>
         <div className="quality-mode-grid">
           {Object.values(QUALITY_MODES).map((mode) => (
-            <button
+            <HoverHint
               key={mode.id}
-              type="button"
-              className={`quality-mode-btn${s.qualityMode === mode.id ? ' active' : ''}`}
-              onClick={() => s.setQualityMode(mode.id)}
+              fill
+              title={mode.label}
+              description={qualityHints[mode.id]?.description}
+              pros={qualityHints[mode.id]?.pros}
+              cons={qualityHints[mode.id]?.cons}
+              state={s.qualityMode === mode.id ? '현재 선택된 모드입니다.' : '지금 누르면 이번 달 품질/원가 기준이 이 모드로 바뀝니다.'}
             >
-              <strong>{mode.label}</strong>
-              <span>원가 x{mode.costMul.toFixed(2)}</span>
-              <span>품질 x{mode.qualityMul.toFixed(2)}</span>
-            </button>
+              <button
+                type="button"
+                className={`quality-mode-btn${s.qualityMode === mode.id ? ' active' : ''}`}
+                onClick={() => s.setQualityMode(mode.id)}
+              >
+                <strong>{mode.label}</strong>
+                <span>원가 x{mode.costMul.toFixed(2)}</span>
+                <span>품질 x{mode.qualityMul.toFixed(2)}</span>
+              </button>
+            </HoverHint>
           ))}
         </div>
         <div className="order-plan-help">{qualityMeta.summary}</div>
@@ -179,20 +221,27 @@ export default function PriceBlock() {
             </div>
           </div>
 
-          <div className="price-presets">
-            {suggestedPlans.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                className="price-preset-btn"
-                onClick={() => s.setPlannedOrderUnits(preset.value)}
-              >
-                {preset.label}
-                <br />
-                <small>{preset.value.toLocaleString('ko-KR')}개</small>
-              </button>
-            ))}
-          </div>
+            <div className="price-presets">
+              {suggestedPlans.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="price-preset-btn"
+                  title={
+                    preset.label === '보수'
+                      ? '예상 수요보다 적게 발주해 재고 리스크를 줄입니다.'
+                      : preset.label === '기준'
+                        ? '예상 수요 기준으로 가장 무난한 발주 계획입니다.'
+                        : '품절을 줄이기 위해 수요보다 공격적으로 발주합니다.'
+                  }
+                  onClick={() => s.setPlannedOrderUnits(preset.value)}
+                >
+                  {preset.label} 발주
+                  <br />
+                  <small>{preset.value.toLocaleString('ko-KR')}개</small>
+                </button>
+              ))}
+            </div>
 
           <div className="order-plan-box">
             <div className="order-plan-title">발주 수량</div>
@@ -222,9 +271,16 @@ export default function PriceBlock() {
                   key={multiplier}
                   type="button"
                   className="price-preset-btn"
+                  title={
+                    labels[index] === '보급'
+                      ? '회전율 위주의 저가 전략 기준 가격입니다.'
+                      : labels[index] === '표준'
+                        ? '가장 무난한 중간 가격대 기준입니다.'
+                        : '브랜드와 품질 차별화를 노리는 고가 전략 기준입니다.'
+                  }
                   onClick={() => s.setSellPrice(nextPrice)}
                 >
-                  {labels[index]}
+                  {labels[index]}가
                   <br />
                   <small>{fmtW(nextPrice)}</small>
                 </button>
