@@ -34,6 +34,7 @@ function formatMoneyShort(value) {
 
 export default function DifficultyScreen() {
   const startGame = useGameStore((state) => state.startGame);
+  const goToMenu = useGameStore((state) => state.goToMenu);
   const meta = loadMeta();
   const [selectedDiff, setSelectedDiff] = useState('normal');
   const [settings, setSettings] = useState(() => createPresetSettings('normal'));
@@ -78,6 +79,11 @@ export default function DifficultyScreen() {
         <div className="diff-title">캐피로그 2.0</div>
         <div className="diff-sub">
           난이도 프리셋을 고른 뒤 시작 자금, 부채, 금리, 경쟁 강도까지 직접 조절해 원하는 러닝을 설계하세요.
+        </div>
+        <div className="diff-header-actions">
+          <button type="button" className="diff-reset-btn" onClick={goToMenu}>
+            메인 메뉴로
+          </button>
         </div>
         {(meta.bankrupts > 0 || meta.clears > 0) && (
           <div className="diff-meta-hint">

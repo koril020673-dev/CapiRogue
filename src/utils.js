@@ -38,6 +38,25 @@ export function saveMeta(m) {
 }
 
 // ── Guess item category from name ────────────────────────────────────────────
+export function loadStorageJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed == null ? fallback : parsed;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveStorageJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore storage write failures for non-critical UI data
+  }
+}
+
 export function guessCategoryFromName(name) {
   const luxury    = ['명품','가죽','다이아','황금','수제','수공','고급','비건','오가닉','유기농'];
   const essential = ['식품','쌀','빵','물','소금','기저귀','칫솔','비누','세제','마스크','의약'];

@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-04-14
+
+### Front Flow / Menu
+- 게임 시작 흐름을 `로고 스플래시 → 메인 메뉴 → 난이도 설정 → 플레이` 구조로 재편했습니다.
+  - `새로하기`, `계속하기`, `다시하기`, `플레이 이력`, `설정` 메뉴 추가
+  - `src/App.jsx`
+  - `src/components/SplashScreen.jsx`
+  - `src/components/MainMenu.jsx`
+  - `src/styles/main.css`
+- 간단한 Web Audio 기반 BGM 루프를 추가하고 메뉴 설정에서 볼륨을 조절할 수 있게 했습니다.
+  - `src/components/BgmController.jsx`
+  - `src/components/modals/SettingsModal.jsx`
+
+### Save / Resume / History
+- 자동 저장과 체크포인트 복구 시스템을 추가했습니다.
+  - `계속하기`: 최신 자동 저장에서 복귀
+  - `다시하기`: 저장된 체크포인트 목록에서 원하는 시점 선택
+  - `플레이 이력`: 최근 러닝 결과 24개 기록
+  - `src/store/useGameStore.js`
+  - `src/components/modals/RestoreModal.jsx`
+  - `src/components/modals/HistoryModal.jsx`
+  - `src/components/modals/ModalManager.jsx`
+- UI 설정과 저장/기록 데이터를 `localStorage`에 분리 저장하도록 정리했습니다.
+  - `src/constants.js`
+  - `src/utils.js`
+
+### Verification
+- `npm run build` 통과
+
 ## 2026-04-13
 
 ### Difficulty / Endless Mode

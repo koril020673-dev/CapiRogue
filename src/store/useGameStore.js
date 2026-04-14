@@ -5,6 +5,8 @@ import {
   ECO_PHASE_DURATION, TAX_BRACKETS, POLICY_EVENTS, DIFF_EVENT_TUNING,
   ADVISOR_AVATAR, ADVISOR_LABEL, DIFF_DEMAND_ELASTICITY,
   CUSTOM_DIFFICULTY_LIMITS, DEFAULT_MAX_TURNS, ENDLESS_MODE,
+  PLAY_HISTORY_KEY, RUN_CHECKPOINTS_KEY, RUN_SAVE_KEY,
+  UI_SETTINGS_DEF, UI_SETTINGS_KEY,
 } from '../constants.js';
 import {
   calculateMarketShare, advanceEconomy, calcTurnResult, estimateBaseDemand,
@@ -22,6 +24,8 @@ import {
   validateItemInput,
   getRunCycle,
   isCycleTransitionTurn,
+  loadStorageJson,
+  saveStorageJson,
 } from '../utils.js';
 import {
   getApprovalCardPreview,
@@ -97,6 +101,11 @@ function boostRivalsForEndlessCycle(rivals = []) {
 }
 
 // ── Initial state factory ─────────────────────────────────────────────────────
+const loadUiSettings = () => ({ ...UI_SETTINGS_DEF, ...(loadStorageJson(UI_SETTINGS_KEY, {}) || {}) });
+const loadRunSave = () => loadStorageJson(RUN_SAVE_KEY, null);
+const loadRunCheckpoints = () => loadStorageJson(RUN_CHECKPOINTS_KEY, []);
+const loadPlayHistory = () => loadStorageJson(PLAY_HISTORY_KEY, []);
+
 const INITIAL_GAME = () => ({
   capital: 100_000_000,
   debt: 0,
@@ -108,6 +117,7 @@ const INITIAL_GAME = () => ({
   maxTurns: DEFAULT_MAX_TURNS,
   difficulty: null,
   challenge: buildChallengeConfig('normal'),
+  runId: null,
   gameStatus: 'playing',
   industryTier: 1,
   itemTier: 1,
@@ -158,6 +168,61 @@ const INITIAL_GAME = () => ({
   _boomBonus: 0,
   approvalCardPreview: [],
 });
+
+const SERIALIZED_GAME_KEYS = Object.keys(INITIAL_GAME());
+
+function createRunSnapshot(state, label = '') {
+  const runState = SERIALIZED_GAME_KEYS.reduce((acc, key) => {
+    acc[key] = state[key];
+    return acc;
+  }, {});
+
+  return {
+    id: `${state.runId || `run-${Date.now()}`}-${state.turn}-${Date.now()}`,
+    runId: state.runId,
+    savedAt: new Date().toISOString(),
+    label: label || `${DIFF_LABEL[state.difficulty] || '런'} · ${state.turn}개월 차`,
+    turn: state.turn,
+    difficulty: state.difficulty,
+    infiniteMode: Boolean(state.challenge?.infiniteMode),
+    runState,
+    logs: (state.logs || []).slice(0, 40),
+  };
+}
+
+function buildLoadedState(snapshot) {
+  const initGame = INITIAL_GAME();
+  return {
+    ...initGame,
+    ...(snapshot?.runState || {}),
+    logs: snapshot?.logs || [],
+    gamePhase: 'playing',
+    activeModal: null,
+    modalData: null,
+    _resumeTurn: null,
+    turnProcessing: false,
+    aiLoading: false,
+    aiLoadingText: '',
+    searchStatus: '',
+    toasts: [],
+  };
+}
+
+function buildHistoryEntry(state, outcome) {
+  return {
+    id: `${state.runId || `run-${Date.now()}`}-${outcome}-${Date.now()}`,
+    endedAt: new Date().toISOString(),
+    outcome,
+    difficulty: state.difficulty,
+    infiniteMode: Boolean(state.challenge?.infiniteMode),
+    turn: Math.max(1, state.turn),
+    maxTurns: state.maxTurns,
+    capital: state.capital,
+    cumulativeProfit: state.cumulativeProfit,
+    marketShare: state.marketShare,
+    industryTier: state.industryTier,
+  };
+}
 
 function calcProgressiveTax(taxableIncome) {
   if (taxableIncome <= 0) return 0;
@@ -246,8 +311,8 @@ function applyApprovalResolutionToState(state, resolution) {
 // ── Store ─────────────────────────────────────────────────────────────────────
 export const useGameStore = create((set, get) => ({
   // ── UI state ────────────────────────────────────────────────────────────────
-  gamePhase: 'difficulty',   // 'difficulty' | 'playing'
-  activeModal: null,         // 'report'|'finance'|'realty'|'mna'|'meta'|'news'|'story'|'gameover'|'blackswan'
+  gamePhase: 'splash',       // 'splash' | 'menu' | 'difficulty' | 'playing'
+  activeModal: null,         // includes gameplay modals and menu utility modals
   modalData: null,
   _resumeTurn: null,
   turnProcessing: false,
@@ -256,6 +321,10 @@ export const useGameStore = create((set, get) => ({
   aiLoading: false,
   aiLoadingText: '',
   searchStatus: '',
+  settings: loadUiSettings(),
+  continueSave: loadRunSave(),
+  restorePoints: loadRunCheckpoints(),
+  playHistory: loadPlayHistory(),
 
   // ── Game state ───────────────────────────────────────────────────────────────
   ...INITIAL_GAME(),
@@ -304,6 +373,58 @@ export const useGameStore = create((set, get) => ({
     if (resume) resume();
   },
 
+  finishSplash: () => {
+    if (get().gamePhase !== 'splash') return;
+    set({ gamePhase: 'menu' });
+  },
+
+  goToMenu: () => set({ gamePhase: 'menu', activeModal: null, modalData: null, _resumeTurn: null }),
+  openNewGame: () => set({ gamePhase: 'difficulty', activeModal: null, modalData: null, _resumeTurn: null }),
+
+  updateSettings: (patch) => {
+    const next = { ...get().settings, ...patch };
+    saveStorageJson(UI_SETTINGS_KEY, next);
+    set({ settings: next });
+  },
+
+  _persistCurrentRun: (label = '') => {
+    const state = get();
+    if (state.gamePhase !== 'playing' || state.gameStatus !== 'playing') return;
+    const snapshot = createRunSnapshot(state, label);
+    const nextCheckpoints = [
+      snapshot,
+      ...(state.restorePoints || []).filter((item) => item.turn !== snapshot.turn || item.runId !== snapshot.runId),
+    ].slice(0, 12);
+    saveStorageJson(RUN_SAVE_KEY, snapshot);
+    saveStorageJson(RUN_CHECKPOINTS_KEY, nextCheckpoints);
+    set({ continueSave: snapshot, restorePoints: nextCheckpoints });
+  },
+
+  _clearCurrentRunSave: () => {
+    saveStorageJson(RUN_SAVE_KEY, null);
+    set({ continueSave: null });
+  },
+
+  continueGame: () => {
+    const snapshot = get().continueSave || loadRunSave();
+    if (!snapshot) {
+      get().addToast('이어할 저장 데이터가 없습니다.', 'warn');
+      return;
+    }
+    set(buildLoadedState(snapshot));
+    get()._persistCurrentRun(snapshot.label);
+  },
+
+  restoreCheckpoint: (checkpointId) => {
+    const snapshot = (get().restorePoints || []).find((item) => item.id === checkpointId);
+    if (!snapshot) {
+      get().addToast('선택한 저장 시점을 찾을 수 없습니다.', 'warn');
+      return;
+    }
+    set(buildLoadedState(snapshot));
+    get()._persistCurrentRun(snapshot.label);
+  },
+
   refreshApprovalCards: () => {
     set({ approvalCardPreview: getApprovalCardPreview(get(), 3) });
   },
@@ -337,6 +458,7 @@ export const useGameStore = create((set, get) => ({
   startGame: (diff, options = {}) => {
     const cfg = DIFF_CONFIG[diff];
     const challenge = buildChallengeConfig(diff, options);
+    const runId = `run-${Date.now()}`;
     const meta = loadMeta();
     const capBonus = Math.min(meta.capitalBonus || 0, C.META_CAPITAL_BONUS_MAX);
     const boomBonus = Math.min(meta.boomBonus || 0, C.META_BOOM_BONUS_MAX);
@@ -384,6 +506,7 @@ export const useGameStore = create((set, get) => ({
       gamePhase: 'playing',
       difficulty: diff,
       challenge,
+      runId,
       capital: baseCapital,
       debt: challenge.startDebt,
       interestRate: challenge.interestRate,
@@ -395,6 +518,7 @@ export const useGameStore = create((set, get) => ({
       logs: [{ turn: 0, msg: `게임 시작: ${runLabel}`, type: 'info', id: Date.now() }],
       toasts: [],
     });
+    get()._persistCurrentRun(`${runLabel} · 시작`);
     if (capBonus > 0) get().addLog(`메타 보너스: 자본 +${(capBonus * 100).toFixed(1)}%`, 'good');
   },
 
@@ -722,6 +846,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   _recordMetaEnd: (type) => {
+    const state = get();
     const m = loadMeta();
     m.plays++;
     if (type === 'bankrupt' || type === 'hostile') {
@@ -733,6 +858,10 @@ export const useGameStore = create((set, get) => ({
       m.boomBonus = Math.min((m.boomBonus || 0) + C.META_BOOM_BONUS_PER_CLEAR, C.META_BOOM_BONUS_MAX);
     }
     saveMeta(m);
+    const nextHistory = [buildHistoryEntry(state, type), ...(state.playHistory || [])].slice(0, 24);
+    saveStorageJson(PLAY_HISTORY_KEY, nextHistory);
+    set({ playHistory: nextHistory });
+    get()._clearCurrentRunSave();
   },
 
   // ── Internal: Black Swan ──────────────────────────────────────────────────────
@@ -1243,6 +1372,7 @@ export const useGameStore = create((set, get) => ({
       };
     });
     get().refreshApprovalCards();
+    get()._persistCurrentRun(`T${get().turn} 체크포인트`);
 
     if (nextTurnStartsCycle) {
       const cycle = getRunCycle(get().turn, get().maxTurns, true);
@@ -1261,16 +1391,19 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ── Restart ───────────────────────────────────────────────────────────────────
-  restart: () => set({
-    ...INITIAL_GAME(),
-    gamePhase: 'difficulty',
-    activeModal: null,
-    modalData: null,
-    _resumeTurn: null,
-    turnProcessing: false,
-    toasts: [],
-    logs: [],
-    aiLoading: false,
-    searchStatus: '',
-  }),
+  restart: () => {
+    get()._clearCurrentRunSave();
+    set({
+      ...INITIAL_GAME(),
+      gamePhase: 'menu',
+      activeModal: null,
+      modalData: null,
+      _resumeTurn: null,
+      turnProcessing: false,
+      toasts: [],
+      logs: [],
+      aiLoading: false,
+      searchStatus: '',
+    });
+  },
 }));

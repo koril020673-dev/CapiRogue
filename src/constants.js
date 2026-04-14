@@ -337,3 +337,12 @@ export const PIE_COLORS = ['#58A6FF','#FF6B6B','#51CF66','#FFD43B','#CC5DE8','#F
 
 export const META_KEY = 'mm_v7_meta';
 export const META_DEF = { bankrupts: 0, clears: 0, capitalBonus: 0, boomBonus: 0, plays: 0 };
+export const RUN_SAVE_KEY = 'mm_v7_run_save';
+export const RUN_CHECKPOINTS_KEY = 'mm_v7_run_checkpoints';
+export const PLAY_HISTORY_KEY = 'mm_v7_play_history';
+export const UI_SETTINGS_KEY = 'mm_v7_ui_settings';
+export const UI_SETTINGS_DEF = {
+  bgmVolume: 0.45,
+  textScale: 1,
+};
+export const SPLASH_DURATION_MS = 1800;

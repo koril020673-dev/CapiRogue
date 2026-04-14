@@ -58,7 +58,7 @@ export default function GameOverModal() {
       )}
 
       <button className="btn btn-primary btn-block" onClick={restart}>
-        다시 시작
+        메인 메뉴
       </button>
     </div>
   );
