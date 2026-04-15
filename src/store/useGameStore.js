@@ -170,6 +170,7 @@ const INITIAL_GAME = () => ({
 });
 
 const SERIALIZED_GAME_KEYS = Object.keys(INITIAL_GAME());
+const APPROVAL_CARD_COUNT = 1;
 
 function createRunSnapshot(state, label = '') {
   const runState = SERIALIZED_GAME_KEYS.reduce((acc, key) => {
@@ -430,7 +431,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   refreshApprovalCards: () => {
-    set({ approvalCardPreview: getApprovalCardPreview(get(), 3) });
+    set({ approvalCardPreview: getApprovalCardPreview(get(), APPROVAL_CARD_COUNT) });
   },
 
   chooseApprovalCard: (cardId, choiceId = 'act') => {
@@ -482,7 +483,7 @@ export const useGameStore = create((set, get) => ({
       creditGrade: initialGrade,
       effectiveInterestRate: initialEffectiveRate,
       rivals: initialRivals,
-    });
+    }, APPROVAL_CARD_COUNT);
     const isCustomRun = (
       challenge.startCapital !== cfg.capital
       || challenge.startDebt !== cfg.debt
@@ -1107,7 +1108,7 @@ export const useGameStore = create((set, get) => ({
       }));
     }
 
-    const approvalCards = pickApprovalCards(get(), 3);
+    const approvalCards = pickApprovalCards(get(), APPROVAL_CARD_COUNT);
     set({ approvalCardPreview: approvalCards });
     await new Promise(resolve => set({
       activeModal: 'approval',

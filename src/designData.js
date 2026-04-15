@@ -902,11 +902,11 @@ function weightedPick(items, count) {
   return selected;
 }
 
-export function getApprovalCardPreview(state, count = 3) {
+export function getApprovalCardPreview(state, count = 1) {
   return pickApprovalCards(state, count);
 }
 
-export function pickApprovalCards(state, count = 3) {
+export function pickApprovalCards(state, count = 1) {
   const eligible = APPROVAL_DOC_CARDS
     .filter((card) => (state.turn || 1) >= (card.minTurn || 1))
     .filter((card) => !card.maxTurn || (state.turn || 1) <= card.maxTurn)

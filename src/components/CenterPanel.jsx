@@ -123,6 +123,8 @@ export default function CenterPanel() {
     ? Boolean(s.selectedVendor) && !s.factory.productSelectionOpen
     : Boolean(s.selectedVendor);
   const phaseTwoDone = canAdvance;
+  const previewCard = s.approvalCardPreview[0] || null;
+  const previewGrade = previewCard ? (APPROVAL_CARD_GRADES[previewCard.grade]?.label || previewCard.grade) : '';
   const phaseOneSummary = phaseOneDone
     ? factoryActive
       ? `${s.selectedVendorName} 라인이 고정되어 있습니다. 공장 업그레이드 후에만 다시 바꿀 수 있습니다.`
@@ -285,23 +287,22 @@ export default function CenterPanel() {
         <SectionHeader
           eyebrow="Phase 05"
           title="결재 서류 브리핑"
-          subtitle="실행 버튼을 누르기 전 미리 보는 카드 풀입니다. 실제 선택은 턴 종료 직전에 진행됩니다."
+          subtitle="실행 버튼을 누르기 전, 이번 턴에 실제로 뜰 결재안 1장을 미리 확인하는 구간입니다."
           icon="05"
-          status={`${s.approvalCardPreview.length}장 대기`}
+          status={previewCard ? `${previewGrade} 결재안` : '결재안 대기'}
         />
-        <div className="doc-preview-grid">
-          {s.approvalCardPreview.map((card) => {
-            const grade = APPROVAL_CARD_GRADES[card.grade];
-            return (
-              <div key={card.id} className={`doc-preview-card ${grade?.className || ''}`}>
-                <div className="doc-preview-top">
-                  <span className="doc-preview-grade">{grade?.label || card.grade}</span>
-                  <strong>{card.title}</strong>
-                </div>
-                <div className="doc-preview-summary">{card.summary}</div>
+        <div className={`doc-preview-grid${previewCard ? ' single' : ''}`}>
+          {previewCard ? (
+            <div className={`doc-preview-card ${APPROVAL_CARD_GRADES[previewCard.grade]?.className || ''}`}>
+              <div className="doc-preview-top">
+                <span className="doc-preview-grade">{previewGrade}</span>
+                <strong>{previewCard.title}</strong>
               </div>
-            );
-          })}
+              <div className="doc-preview-summary">{previewCard.summary}</div>
+            </div>
+          ) : (
+            <div className="doc-preview-empty">이번 턴 결재안이 아직 준비되지 않았습니다.</div>
+          )}
         </div>
       </section>
 
@@ -312,7 +313,7 @@ export default function CenterPanel() {
             {canAdvance ? '결재 후 월간 실행' : '실행 전 체크가 더 필요합니다'}
           </div>
           <div className="turn-launch-sub">
-            결재 서류 3장을 확인하고 하나를 고르면, 그 결과까지 반영한 뒤 이번 달 정산이 진행됩니다.
+            결재안 1장을 확인하고 결정을 내리면, 그 결과까지 반영한 뒤 이번 달 정산이 진행됩니다.
           </div>
           <div className="turn-launch-checks">
             {launchChecks.map((check) => (
@@ -327,10 +328,10 @@ export default function CenterPanel() {
           align="end"
           disabled={!canAdvance || s.turnProcessing}
           title="결재 후 월간 실행"
-          description="이번 달 입력을 잠그고 결재 카드 3장 중 하나를 고른 뒤, 그 결과까지 반영해서 정산을 진행합니다."
+          description="이번 달 입력을 잠그고 결재안 1장을 확인한 뒤 결정을 내리면, 그 결과까지 반영해서 정산을 진행합니다."
           pros="실행 전에 마지막 의사결정 카드가 열려 한 번 더 방향을 고를 수 있습니다."
           cons="누르는 순간 이번 달 설정이 확정되므로 미입력 항목이 있으면 실행할 수 없습니다."
-          state={!canAdvance || s.turnProcessing ? `지금 못 누르는 이유: ${launchBlockedReason}` : '지금 누르면 결재 카드 선택 후 월간 정산이 시작됩니다.'}
+          state={!canAdvance || s.turnProcessing ? `지금 못 누르는 이유: ${launchBlockedReason}` : '지금 누르면 결재안 확인 후 월간 정산이 시작됩니다.'}
         >
           <button
             type="button"
@@ -338,7 +339,7 @@ export default function CenterPanel() {
             disabled={!canAdvance || s.turnProcessing}
             onClick={s.runTurn}
           >
-            {s.turnProcessing ? '월간 실행 중' : '결재 서류 확인 후 실행'}
+            {s.turnProcessing ? '월간 실행 중' : '결재안 확인 후 실행'}
           </button>
         </HoverHint>
       </section>
