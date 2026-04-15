@@ -3682,6 +3682,118 @@ body::after {
   min-width: 220px;
 }
 
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  pointer-events: auto;
+}
+
+.tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 11, 19, 0.78);
+}
+
+.tutorial-focus {
+  position: fixed;
+  border-radius: 22px;
+  border: 1px solid rgba(124,207,255,0.55);
+  background: rgba(124,207,255,0.06);
+  box-shadow:
+    0 0 0 9999px rgba(4, 11, 19, 0.78),
+    0 0 0 1px rgba(255,255,255,0.08) inset,
+    0 18px 36px rgba(0,0,0,0.32);
+  transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease;
+  pointer-events: none;
+}
+
+.tutorial-card {
+  position: fixed;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(124,207,255,0.22);
+  background:
+    linear-gradient(135deg, rgba(124,207,255,0.14), rgba(79,214,190,0.05)),
+    rgba(7, 22, 28, 0.98);
+  box-shadow: 0 22px 40px rgba(0,0,0,0.36);
+  pointer-events: auto;
+}
+
+.tutorial-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tutorial-step-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(79,214,190,0.1);
+  border: 1px solid rgba(79,214,190,0.2);
+}
+
+.tutorial-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.tutorial-close:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
+}
+
+.tutorial-card h3 {
+  margin-top: 12px;
+  font-size: 20px;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.tutorial-card p {
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tutorial-tip {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tutorial-actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tutorial-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (max-width: 1320px) {
   .menu-panel {
     grid-template-columns: 1fr;
@@ -3826,6 +3938,21 @@ body::after {
 
   .timeline-bar .tl-side {
     justify-content: space-between;
+  }
+
+  .tutorial-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .tutorial-card h3 {
+    font-size: 18px;
+  }
+
+  .tutorial-actions,
+  .tutorial-actions-right {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

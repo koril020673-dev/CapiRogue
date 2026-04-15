@@ -39,7 +39,7 @@ export default function TimelineBar() {
   const campaignLabel = getCampaignLabel(turn);
 
   return (
-    <div className="timeline-bar">
+    <div className="timeline-bar" data-tutorial="timeline">
       <div className="tl-brand">
         <span className="tl-kicker">Command Deck</span>
         <span className="tl-label">CapiRogue</span>

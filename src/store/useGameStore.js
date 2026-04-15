@@ -6,7 +6,7 @@ import {
   ADVISOR_AVATAR, ADVISOR_LABEL, DIFF_DEMAND_ELASTICITY,
   CUSTOM_DIFFICULTY_LIMITS, DEFAULT_MAX_TURNS, ENDLESS_MODE,
   PLAY_HISTORY_KEY, RUN_CHECKPOINTS_KEY, RUN_SAVE_KEY,
-  UI_SETTINGS_DEF, UI_SETTINGS_KEY,
+  UI_SETTINGS_DEF, UI_SETTINGS_KEY, FIRST_PLAY_KEY,
 } from '../constants.js';
 import {
   calculateMarketShare, advanceEconomy, calcTurnResult, estimateBaseDemand,
@@ -210,6 +210,8 @@ function buildLoadedState(snapshot) {
     aiLoadingText: '',
     searchStatus: '',
     toasts: [],
+    tutorialOpen: false,
+    tutorialStep: 0,
   };
 }
 
@@ -330,6 +332,8 @@ export const useGameStore = create((set, get) => ({
   continueSave: loadRunSave(),
   restorePoints: loadRunCheckpoints(),
   playHistory: loadPlayHistory(),
+  tutorialOpen: false,
+  tutorialStep: 0,
 
   // ── Game state ───────────────────────────────────────────────────────────────
   ...INITIAL_GAME(),
@@ -378,13 +382,36 @@ export const useGameStore = create((set, get) => ({
     if (resume) resume();
   },
 
+  openTutorial: () => set({ tutorialOpen: true, tutorialStep: 0 }),
+  closeTutorial: (markSeen = true) => {
+    if (markSeen && typeof window !== 'undefined') {
+      window.localStorage.setItem(FIRST_PLAY_KEY, 'done');
+    }
+    set({ tutorialOpen: false, tutorialStep: 0 });
+  },
+  setTutorialStep: (step) => set({ tutorialStep: Math.max(0, step | 0) }),
+
   finishSplash: () => {
     if (get().gamePhase !== 'splash') return;
     set({ gamePhase: 'menu' });
   },
 
-  goToMenu: () => set({ gamePhase: 'menu', activeModal: null, modalData: null, _resumeTurn: null }),
-  openNewGame: () => set({ gamePhase: 'difficulty', activeModal: null, modalData: null, _resumeTurn: null }),
+  goToMenu: () => set({
+    gamePhase: 'menu',
+    activeModal: null,
+    modalData: null,
+    _resumeTurn: null,
+    tutorialOpen: false,
+    tutorialStep: 0,
+  }),
+  openNewGame: () => set({
+    gamePhase: 'difficulty',
+    activeModal: null,
+    modalData: null,
+    _resumeTurn: null,
+    tutorialOpen: false,
+    tutorialStep: 0,
+  }),
 
   updateSettings: (patch) => {
     const next = { ...get().settings, ...patch };
@@ -508,6 +535,8 @@ export const useGameStore = create((set, get) => ({
       aiLoading: false,
       aiLoadingText: '',
       searchStatus: '',
+      tutorialOpen: false,
+      tutorialStep: 0,
       gamePhase: 'playing',
       difficulty: diff,
       challenge,
@@ -1447,6 +1476,8 @@ export const useGameStore = create((set, get) => ({
       modalData: null,
       _resumeTurn: null,
       turnProcessing: false,
+      tutorialOpen: false,
+      tutorialStep: 0,
       toasts: [],
       logs: [],
       aiLoading: false,

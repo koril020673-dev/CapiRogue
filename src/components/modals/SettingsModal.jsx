@@ -6,6 +6,7 @@ export default function SettingsModal() {
   const closeModal = useGameStore((state) => state.closeModal);
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
+  const openTutorial = useGameStore((state) => state.openTutorial);
 
   return (
     <div className="modal-box settings-modal">
@@ -43,6 +44,15 @@ export default function SettingsModal() {
       </label>
 
       <div className="modal-footer-row">
+        <button
+          className="btn btn-secondary"
+          onClick={() => {
+            closeModal();
+            window.setTimeout(() => openTutorial(), 60);
+          }}
+        >
+          튜토리얼 다시 보기
+        </button>
         <button className="btn btn-ghost" onClick={() => updateSettings(UI_SETTINGS_DEF)}>기본값</button>
         <button className="btn btn-primary" onClick={closeModal}>닫기</button>
       </div>

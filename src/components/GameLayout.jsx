@@ -4,6 +4,7 @@ import TimelineBar from './TimelineBar.jsx';
 import LeftPanel from './LeftPanel.jsx';
 import CenterPanel from './CenterPanel.jsx';
 import RightPanel from './RightPanel.jsx';
+import GameplayTutorial from './GameplayTutorial.jsx';
 
 export default function GameLayout() {
   const marketShare = useGameStore(s => s.marketShare);
@@ -15,6 +16,7 @@ export default function GameLayout() {
       <LeftPanel />
       <CenterPanel />
       <RightPanel />
+      <GameplayTutorial />
     </div>
   );
 }

@@ -88,7 +88,7 @@ export default function LeftPanel() {
   const maxAbs  = Math.max(...history.map(v => Math.abs(v)), 1);
 
   return (
-    <div className="panel-left">
+    <div className="panel-left" data-tutorial="hq-panel">
       <div className="lp-command-card">
         <div className="lp-kicker">Headquarters</div>
         <div className="lp-title-row">

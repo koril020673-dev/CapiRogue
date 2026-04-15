@@ -36,7 +36,7 @@ function SectionHeader({ eyebrow, title, subtitle, icon, status }) {
   );
 }
 
-function CollapsibleSection({ title, subtitle, eyebrow, icon, status, summary, children, className = '', defaultOpen = false, open: controlledOpen, onToggle }) {
+function CollapsibleSection({ title, subtitle, eyebrow, icon, status, summary, children, className = '', tutorialId = '', defaultOpen = false, open: controlledOpen, onToggle }) {
   const [open, setOpen] = useState(defaultOpen);
   const isControlled = typeof controlledOpen === 'boolean';
   const expanded = isControlled ? controlledOpen : open;
@@ -50,7 +50,10 @@ function CollapsibleSection({ title, subtitle, eyebrow, icon, status, summary, c
   };
 
   return (
-    <section className={`cp-section cp-collapsible${expanded ? ' open' : ' closed'}${className ? ` ${className}` : ''}`}>
+    <section
+      className={`cp-section cp-collapsible${expanded ? ' open' : ' closed'}${className ? ` ${className}` : ''}`}
+      data-tutorial={tutorialId || undefined}
+    >
       <button type="button" className="cp-collapsible-header" onClick={handleToggle}>
         <div className="cp-collapsible-main">
           <SectionHeader eyebrow={eyebrow} title={title} subtitle={subtitle} icon={icon} status={status} />
@@ -204,7 +207,7 @@ export default function CenterPanel() {
         <EcoBanner />
       </div>
 
-      <div className="cp-situation-strip">
+      <div className="cp-situation-strip" data-tutorial="situation-strip">
         {situationCards.map((card) => (
           <div key={card.label} className={`cp-situation-card ${card.tone || 'neutral'}`}>
             <span>{card.label}</span>
@@ -224,6 +227,7 @@ export default function CenterPanel() {
         icon="01"
         status={factoryActive && !s.factory.productSelectionOpen ? '라인 고정' : s.selectedVendor ? s.selectedVendorName : '계약 대기'}
         summary={phaseOneSummary}
+        tutorialId="phase-setup"
         open={phaseOneOpen}
         onToggle={setPhaseOneOpen}
         defaultOpen
@@ -238,6 +242,7 @@ export default function CenterPanel() {
         icon="02"
         status={canAdvance ? '실행 준비 완료' : '입력 필요'}
         summary={phaseTwoSummary}
+        tutorialId="phase-pricing"
         open={phaseTwoOpen}
         onToggle={setPhaseTwoOpen}
         defaultOpen
@@ -306,7 +311,7 @@ export default function CenterPanel() {
         </div>
       </section>
 
-      <section className={`turn-launch${canAdvance ? ' ready' : ''}`}>
+      <section className={`turn-launch${canAdvance ? ' ready' : ''}`} data-tutorial="execute-phase">
         <div className="turn-launch-copy">
           <div className="turn-launch-eyebrow">Execute</div>
           <div className="turn-launch-title">

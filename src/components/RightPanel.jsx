@@ -60,7 +60,7 @@ export default function RightPanel() {
   ), [activeRivals]);
 
   return (
-    <div className="panel-right">
+    <div className="panel-right" data-tutorial="intel-panel">
       <div className="rp-overview">
         <div className="rp-overview-kicker">Market Intel</div>
         <div className="rp-overview-title">라이벌 브리핑</div>

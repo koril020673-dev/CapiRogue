@@ -341,6 +341,7 @@ export const RUN_SAVE_KEY = 'mm_v7_run_save';
 export const RUN_CHECKPOINTS_KEY = 'mm_v7_run_checkpoints';
 export const PLAY_HISTORY_KEY = 'mm_v7_play_history';
 export const UI_SETTINGS_KEY = 'mm_v7_ui_settings';
+export const FIRST_PLAY_KEY = 'firstPlay';
 export const UI_SETTINGS_DEF = {
   bgmVolume: 0.45,
   textScale: 1,
