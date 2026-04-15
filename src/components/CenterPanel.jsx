@@ -312,7 +312,7 @@ export default function CenterPanel() {
             {canAdvance ? '결재 후 월간 실행' : '실행 전 체크가 더 필요합니다'}
           </div>
           <div className="turn-launch-sub">
-            실행 버튼을 누르면 결재 서류 3장이 열리고, 선택 결과까지 반영한 뒤 월간 정산이 진행됩니다.
+            결재 서류 3장을 확인하고 하나를 고르면, 그 결과까지 반영한 뒤 이번 달 정산이 진행됩니다.
           </div>
           <div className="turn-launch-checks">
             {launchChecks.map((check) => (
@@ -324,6 +324,7 @@ export default function CenterPanel() {
         </div>
         <HoverHint
           className="turn-launch-action"
+          align="end"
           disabled={!canAdvance || s.turnProcessing}
           title="결재 후 월간 실행"
           description="이번 달 입력을 잠그고 결재 카드 3장 중 하나를 고른 뒤, 그 결과까지 반영해서 정산을 진행합니다."

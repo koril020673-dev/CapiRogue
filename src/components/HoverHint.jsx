@@ -6,14 +6,17 @@ export default function HoverHint({
   description,
   pros,
   cons,
+  examples = [],
   state,
   disabled = false,
   fill = false,
+  align = 'start',
   className = '',
 }) {
   const rootClassName = [
     'hover-hint',
     fill ? 'fill' : '',
+    align === 'end' ? 'align-end' : '',
     disabled ? 'is-disabled' : 'is-ready',
     className,
   ].filter(Boolean).join(' ');
@@ -39,6 +42,14 @@ export default function HoverHint({
           <div className="hover-hint-line">
             <span>주의</span>
             <p>{cons}</p>
+          </div>
+        )}
+        {examples.length > 0 && (
+          <div className="hover-hint-examples">
+            <span>예시</span>
+            <ul>
+              {examples.map((example) => <li key={example}>{example}</li>)}
+            </ul>
           </div>
         )}
         {state && <div className={`hover-hint-footer${disabled ? ' blocked' : ''}`}>{state}</div>}

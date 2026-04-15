@@ -9,6 +9,55 @@
 
 ---
 
+## 2026-W16 (2026-04-14 ~ 2026-04-20)
+
+### UI/UX 변경
+- 진행 흐름 재정리
+  - Phase 01/02를 접고 펼칠 수 있도록 구성하고, 완료 시 요약 문구가 보이도록 개선
+  - 현재 해야 할 판단을 바로 읽을 수 있도록 상황 요약 스트립과 실행 전 체크 칩 추가
+  - 실행 영역 카피를 다듬고 버튼 상태가 더 직관적으로 보이도록 정리
+- 가격/티어/품질 조작부 가독성 개선
+  - 티어 카드, 품질 모드, 발주/가격 프리셋을 더 작은 카드형 그리드로 압축
+  - 클릭 가능한 요소와 비활성 요소의 hover 차이를 강화해 누를 수 있는지 즉시 구분되도록 개선
+  - 티어/품질/발주/가격 프리셋 hover 카드에 개념 설명, 장단점, 예시 3종씩 추가
+- 결재/브리핑 영역 정돈
+  - Phase 05 브리핑 카드가 실행 박스에 눌려 보이던 레이아웃을 완화
+  - 우측 끝에서 잘리던 T2 해금/실행 버튼 툴팁을 우측 정렬로 보정
+
+### 기능 변경
+- 공장 진행 규칙 정리
+  - 품질 모드는 공장 완공 후에만 해금되도록 조정
+  - 공장 가동 후에는 아이템 탐색/계약을 잠그고, 공장 업그레이드 시 다시 라인 재선정이 가능하도록 변경
+- 난이도 설정 화면 개선
+  - 세부 조정 구간을 스크롤 가능한 화면 흐름으로 정리
+  - 시작 전/게임 중 UI 비율 조정 경험을 정돈하고 설정 접근성을 개선
+- 발주 기준 보정
+  - 예상 수요 대비 발주 프리셋을 보수 `85%`, 기준 `100%`, 공세 `115%`로 조정
+
+### 버그 수정
+- 프리미엄 품질 모드에서 개당 마진이 잘못 보이던 계산/표시 문제 수정
+- 잠금 상태 티어 hover 설명이 잘못 판정되던 로직 수정
+
+### 문서 변경
+- 주간 변경 기록 갱신
+  - W16 UI/진행 흐름 개선 사항 추가
+
+### 검증
+- `npm run build` 통과
+
+### 주요 변경 파일
+- src/components/ActionGuide.jsx
+- src/components/CenterPanel.jsx
+- src/components/DifficultyScreen.jsx
+- src/components/FactoryBlock.jsx
+- src/components/HoverHint.jsx
+- src/components/PriceBlock.jsx
+- src/components/VendorSearch.jsx
+- src/components/modals/SettingsModal.jsx
+- src/store/useGameStore.js
+- src/styles/main.css
+- WEEKLY_CHANGELOG.md
+
 ## 2026-W15 (2026-04-07 ~ 2026-04-13)
 
 ### 기능 변경
