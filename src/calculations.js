@@ -114,7 +114,7 @@ export function calculateMarketShare(state, getEffectMod) {
   const evResist = getEffectMod(EV.RESIST);
   const evQuality = getEffectMod(EV.QUALITY);
   const factoryActive = state.factory.built && state.factory.buildTurnsLeft <= 0;
-  const qualityMeta = getQualityMeta(state.qualityMode);
+  const qualityMeta = getQualityMeta(factoryActive ? state.qualityMode : 'standard');
   const baseQuality = vendor.qualityScore + (factoryActive ? state.factory.upgradeLevel * 20 : 0) + evQuality;
   const myQuality = Math.round(baseQuality * qualityMeta.qualityMul);
   const myBrand = Math.max(0, state.brandValue + evBrand);
@@ -233,7 +233,7 @@ export function estimateBaseDemand(state, includeRandom = true) {
 export function calcTurnResult(state, shareResult) {
   const demandInfo = estimateBaseDemand(state);
   const factoryActive = state.factory.built && state.factory.buildTurnsLeft <= 0;
-  const qualityMeta = getQualityMeta(state.qualityMode);
+  const qualityMeta = getQualityMeta(factoryActive ? state.qualityMode : 'standard');
   const netCost = Math.round(state.selectedVendor.unitCost * qualityMeta.costMul * (factoryActive ? C.FACTORY_DISCOUNT : 1));
   const plannedProduction = Math.max(0, Math.round(state.plannedOrderUnits || 0));
   const targetSold = state._shutdownLeft > 0 ? 0 : Math.round(demandInfo.demand * shareResult.myShare);
@@ -291,10 +291,10 @@ export function calcTurnResult(state, shareResult) {
 }
 
 export function calcBEP(state) {
-  const qualityMeta = getQualityMeta(state.qualityMode);
+  const factoryActive = state.factory.built && state.factory.buildTurnsLeft <= 0;
+  const qualityMeta = getQualityMeta(factoryActive ? state.qualityMode : 'standard');
   const sellPrice = state.sellPrice;
   const unitCost = state.selectedVendor?.unitCost || 0;
-  const factoryActive = state.factory.built && state.factory.buildTurnsLeft <= 0;
   const netCost = Math.round(unitCost * qualityMeta.costMul * (factoryActive ? C.FACTORY_DISCOUNT : 1));
   const margin = sellPrice - netCost;
   const baseRate = state.effectiveInterestRate || state.interestRate;

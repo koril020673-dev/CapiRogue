@@ -57,8 +57,10 @@ export default function PriceBlock() {
   const currentTier = getTierMeta(s.industryTier) || INDUSTRY_TIERS[0];
   const itemTier = getTierMeta(s.itemTier || s.industryTier) || currentTier;
   const nextTier = getTierMeta((s.industryTier || 1) + 1);
-  const qualityMeta = getQualityMeta(s.qualityMode);
   const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
+  const qualityUnlocked = factoryActive;
+  const appliedQualityMode = qualityUnlocked ? s.qualityMode : 'standard';
+  const qualityMeta = getQualityMeta(appliedQualityMode);
   const unitCost = s.selectedVendor?.unitCost || 0;
   const netCost = Math.round(unitCost * qualityMeta.costMul * (factoryActive ? C.FACTORY_DISCOUNT : 1));
   const maxPrice = Math.max(1000, Math.round((unitCost || 1000) * 8));
@@ -80,9 +82,9 @@ export default function PriceBlock() {
   const demandInfo = s.selectedVendor ? estimateBaseDemand(planState, false) : null;
   const demandRef = demandInfo?.demand || C.BASE_DEMAND;
   const suggestedPlans = [
-    { label: '보수', value: Math.max(50, Math.round(demandRef * 0.7)) },
+    { label: '보수', value: Math.max(50, Math.round(demandRef * 0.85)) },
     { label: '기준', value: Math.max(50, Math.round(demandRef * 1.0)) },
-    { label: '공세', value: Math.max(50, Math.round(demandRef * 1.3)) },
+    { label: '공세', value: Math.max(50, Math.round(demandRef * 1.15)) },
   ];
 
   const bep = s.selectedVendor ? calcBEP({
@@ -94,10 +96,10 @@ export default function PriceBlock() {
     mna: s.mna,
     economy: s.economy,
     monthlyFixedCost: s.monthlyFixedCost,
-    selectedVendor: s.selectedVendor,
-    sellPrice: s.sellPrice,
-    qualityMode: s.qualityMode,
-  }) : null;
+      selectedVendor: s.selectedVendor,
+      sellPrice: s.sellPrice,
+      qualityMode: appliedQualityMode,
+    }) : null;
 
   const mktRefBudget = 10_000_000;
   const rdRefBudget = nextTier?.unlockCost || C.FACTORY_UPGRADE_COST;
@@ -174,22 +176,35 @@ export default function PriceBlock() {
         ))}
       </div>
 
-      <div className="quality-mode-box">
-        <div className="order-plan-title">품질 모드</div>
+      <div className={`quality-mode-box${qualityUnlocked ? '' : ' locked'}`}>
+        <div className="quality-mode-head">
+          <div className="order-plan-title">품질 모드</div>
+          <span className={`quality-lock-badge${qualityUnlocked ? ' active' : ''}`}>
+            {qualityUnlocked ? '생산 라인 활성' : '공장 완공 후 해금'}
+          </span>
+        </div>
         <div className="quality-mode-grid">
           {Object.values(QUALITY_MODES).map((mode) => (
             <HoverHint
               key={mode.id}
               fill
+              disabled={!qualityUnlocked}
               title={mode.label}
               description={qualityHints[mode.id]?.description}
               pros={qualityHints[mode.id]?.pros}
               cons={qualityHints[mode.id]?.cons}
-              state={s.qualityMode === mode.id ? '현재 선택된 모드입니다.' : '지금 누르면 이번 달 품질/원가 기준이 이 모드로 바뀝니다.'}
+              state={
+                !qualityUnlocked
+                  ? '공장이 완공되기 전에는 공급처 기본 품질로만 운영됩니다.'
+                  : s.qualityMode === mode.id
+                    ? '현재 선택된 모드입니다.'
+                    : '지금 누르면 이번 달 품질/원가 기준이 이 모드로 바뀝니다.'
+              }
             >
               <button
                 type="button"
-                className={`quality-mode-btn${s.qualityMode === mode.id ? ' active' : ''}`}
+                className={`quality-mode-btn${appliedQualityMode === mode.id ? ' active' : ''}`}
+                disabled={!qualityUnlocked}
                 onClick={() => s.setQualityMode(mode.id)}
               >
                 <strong>{mode.label}</strong>
@@ -199,11 +214,19 @@ export default function PriceBlock() {
             </HoverHint>
           ))}
         </div>
-        <div className="order-plan-help">{qualityMeta.summary}</div>
+        <div className="order-plan-help">
+          {qualityUnlocked
+            ? qualityMeta.summary
+            : '공장을 완공하면 여기서 저원가 생산, 균형 생산, 고품질 생산 방향을 선택할 수 있습니다.'}
+        </div>
       </div>
 
       {!s.selectedVendor ? (
-        <div className="price-hint">먼저 OEM 계약을 고르면 품질 모드와 발주 계획을 설정할 수 있습니다.</div>
+        <div className="price-hint">
+          {factoryActive && !s.factory.productSelectionOpen
+            ? '현재 생산 라인이 고정되어 있습니다. 공장 업그레이드 후 새 라인을 다시 열 수 있습니다.'
+            : '먼저 현재 판매할 라인을 고르면 발주 계획과 가격을 설정할 수 있습니다.'}
+        </div>
       ) : (
         <>
           <div className="price-hero">
@@ -229,10 +252,10 @@ export default function PriceBlock() {
                   className="price-preset-btn"
                   title={
                     preset.label === '보수'
-                      ? '예상 수요보다 적게 발주해 재고 리스크를 줄입니다.'
+                      ? '예상 수요보다 약간 적게 잡아 재고 부담을 낮춥니다.'
                       : preset.label === '기준'
                         ? '예상 수요 기준으로 가장 무난한 발주 계획입니다.'
-                        : '품절을 줄이기 위해 수요보다 공격적으로 발주합니다.'
+                        : '품절을 줄이기 위해 예상 수요보다 조금 더 여유 있게 발주합니다.'
                   }
                   onClick={() => s.setPlannedOrderUnits(preset.value)}
                 >

@@ -14,7 +14,7 @@ export default function SettingsModal() {
         <button className="modal-close" onClick={closeModal}>×</button>
       </div>
 
-      <p className="modal-sub">브금과 글자/UI 크기를 실시간으로 조절합니다.</p>
+      <p className="modal-sub">브금과 화면 배율을 실시간으로 조절합니다.</p>
 
       <label className="settings-row">
         <span>브금 크기</span>
@@ -30,12 +30,12 @@ export default function SettingsModal() {
       </label>
 
       <label className="settings-row">
-        <span>글자/UI 크기</span>
+        <span>화면 배율</span>
         <strong>{(settings?.textScale ?? UI_SETTINGS_DEF.textScale).toFixed(2)}x</strong>
         <input
           type="range"
-          min="0.9"
-          max="1.15"
+          min="0.82"
+          max="1.10"
           step="0.01"
           value={settings?.textScale ?? UI_SETTINGS_DEF.textScale}
           onChange={(event) => updateSettings({ textScale: Number(event.target.value) })}

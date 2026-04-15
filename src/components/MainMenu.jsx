@@ -37,7 +37,7 @@ export default function MainMenu() {
         <div className="menu-wordmark">capi-rogue</div>
         <h1 className="menu-title">시장 정복을 다시 준비할 시간입니다</h1>
         <p className="menu-sub">
-          포켓로그처럼 메인 메뉴에서 바로 러닝을 고르고, 저장 지점으로 복귀하고, 지난 플레이 기록과 환경 설정까지 정리할 수 있게 구성했습니다.
+          여기서 바로 새 판을 열고, 저장 지점으로 복귀하고, 지난 기록과 환경 설정까지 정리할 수 있습니다.
         </p>
       </section>
 
@@ -77,7 +77,7 @@ export default function MainMenu() {
 
           <button type="button" className="menu-action" onClick={() => state.openModal('settings')}>
             <span className="menu-action-label">설정</span>
-            <span className="menu-action-meta">브금 크기와 글자/UI 크기를 실시간 조절</span>
+            <span className="menu-action-meta">브금 크기와 화면 배율을 실시간 조절</span>
           </button>
         </div>
 

@@ -7,8 +7,11 @@ import { fmtW, pct } from '../utils.js';
 
 function generateLines(state) {
   const lines = [];
+  const factoryActive = state.factory?.built && state.factory?.buildTurnsLeft <= 0;
   if (!state.selectedVendor) {
-    lines.push('먼저 이번 달에 공략할 상품을 탐색하고 OEM 계약을 체결하세요.');
+    lines.push(factoryActive && state.factory?.productSelectionOpen
+      ? '업그레이드 이후 새 생산 라인을 고르는 중입니다.'
+      : '먼저 이번 달에 공략할 상품과 공급처를 정하세요.');
     return lines;
   }
 
@@ -18,6 +21,9 @@ function generateLines(state) {
   const activeRivals = state.rivals.filter((rival) => !rival.bankrupt);
 
   lines.push(`시장: ${ecoLabel} · ${categoryLabel} 수요 x${ecoWeight.toFixed(2)} · 현재 점유율 ${pct(state.marketShare)}`);
+  if (factoryActive && !state.factory?.productSelectionOpen) {
+    lines.push(`생산 라인 고정: ${state.selectedVendor.name} · 공장 Lv.${state.factory.upgradeLevel}`);
+  }
 
   if (state.difficulty === 'easy') {
     const rival = activeRivals[0];
@@ -49,6 +55,7 @@ export default function AdvisorBar() {
     itemCategory: store.itemCategory,
     economy: store.economy,
     marketShare: store.marketShare,
+    factory: store.factory,
   })));
 
   const lines = generateLines(state);

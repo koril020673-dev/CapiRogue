@@ -35,9 +35,12 @@ function formatMoneyShort(value) {
 export default function DifficultyScreen() {
   const startGame = useGameStore((state) => state.startGame);
   const goToMenu = useGameStore((state) => state.goToMenu);
+  const uiScale = useGameStore((state) => state.settings?.textScale ?? 1);
+  const updateSettings = useGameStore((state) => state.updateSettings);
   const meta = loadMeta();
   const [selectedDiff, setSelectedDiff] = useState('normal');
   const [settings, setSettings] = useState(() => createPresetSettings('normal'));
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const selectedCard = CARDS.find((card) => card.diff === selectedDiff) || CARDS[1];
   const presetSettings = createPresetSettings(selectedDiff, settings.infiniteMode);
@@ -74,11 +77,11 @@ export default function DifficultyScreen() {
   return (
     <div className="diff-screen">
       <div className="diff-header">
-        <div className="diff-kicker">Corporate Survival Simulation</div>
+        <div className="diff-kicker">Campaign Setup</div>
         <div className="diff-wordmark">capi-rogue</div>
         <div className="diff-title">캐피로그 2.0</div>
         <div className="diff-sub">
-          난이도 프리셋을 고른 뒤 시작 자금, 부채, 금리, 경쟁 강도까지 직접 조절해 원하는 러닝을 설계하세요.
+          판의 압박감과 시작 조건을 고르고, 화면 배율까지 맞춘 뒤 바로 투입할 수 있습니다.
         </div>
         <div className="diff-header-actions">
           <button type="button" className="diff-reset-btn" onClick={goToMenu}>
@@ -90,6 +93,23 @@ export default function DifficultyScreen() {
             메타 보너스 적용 중 · 자본 +{((meta.capitalBonus || 0) * 100).toFixed(1)}% · 호황 보정 +{((meta.boomBonus || 0) * 100).toFixed(1)}%
           </div>
         )}
+        <div className="diff-screen-tools">
+          <label className="settings-row diff-scale-row">
+            <span>화면 배율</span>
+            <strong>{uiScale.toFixed(2)}x</strong>
+            <input
+              type="range"
+              min="0.82"
+              max="1.10"
+              step="0.01"
+              value={uiScale}
+              onChange={(event) => updateSettings({ textScale: Number(event.target.value) })}
+            />
+          </label>
+          <button type="button" className="diff-reset-btn" onClick={() => setAdvancedOpen((value) => !value)}>
+            {advancedOpen ? '세부 조정 접기' : '세부 조정 열기'}
+          </button>
+        </div>
       </div>
 
       <div className="diff-cards">
@@ -141,110 +161,119 @@ export default function DifficultyScreen() {
       <section className="diff-custom-panel">
         <div className="diff-custom-head">
           <div>
-            <div className="diff-kicker">Run Tuner</div>
+            <div className="diff-kicker">Pressure Control</div>
             <div className="diff-custom-title">{selectedCard.name} 기반 세부 조정</div>
             <div className="diff-custom-sub">
-              프리셋의 흐름은 유지하면서 원하는 압박감으로 세팅할 수 있습니다.
+              기본 흐름은 유지하면서 시작 조건과 압박 강도를 원하는 결로 다듬을 수 있습니다.
             </div>
           </div>
-          <button type="button" className="diff-reset-btn" onClick={resetPreset}>
-            프리셋 값으로 되돌리기
-          </button>
-        </div>
-
-        <div className="diff-tuner-grid">
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">시작 자금</span>
-            <strong>{fmtW(settings.startCapital)}</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.capital.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.capital.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.capital.step}
-              value={settings.startCapital}
-              onChange={updateSetting('startCapital')}
-            />
-          </label>
-
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">시작 부채</span>
-            <strong>{settings.startDebt > 0 ? fmtW(settings.startDebt) : '없음'}</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.debt.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.debt.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.debt.step}
-              value={settings.startDebt}
-              onChange={updateSetting('startDebt')}
-            />
-          </label>
-
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">기준 금리</span>
-            <strong>{(settings.interestRate * 100).toFixed(1)}%</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.interestRate.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.interestRate.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.interestRate.step}
-              value={settings.interestRate}
-              onChange={updateSetting('interestRate')}
-            />
-          </label>
-
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">경쟁사 수</span>
-            <strong>{settings.rivalCount}명</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.rivalCount.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.rivalCount.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.rivalCount.step}
-              value={settings.rivalCount}
-              onChange={updateSetting('rivalCount')}
-            />
-          </label>
-
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">가격 민감도</span>
-            <strong>x{settings.demandElasticity.toFixed(2)}</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.step}
-              value={settings.demandElasticity}
-              onChange={updateSetting('demandElasticity')}
-            />
-          </label>
-
-          <label className="diff-tuner">
-            <span className="diff-tuner-label">이벤트 강도</span>
-            <strong>x{settings.eventIntensity.toFixed(2)}</strong>
-            <input
-              type="range"
-              min={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.min}
-              max={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.max}
-              step={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.step}
-              value={settings.eventIntensity}
-              onChange={updateSetting('eventIntensity')}
-            />
-          </label>
-        </div>
-
-        <label className={`diff-infinite-toggle${settings.infiniteMode ? ' active' : ''}`}>
-          <input
-            type="checkbox"
-            checked={settings.infiniteMode}
-            onChange={updateSetting('infiniteMode')}
-          />
-          <div>
-            <strong>무한모드 도전</strong>
-            <p>
-              120개월 이후에도 시즌이 반복됩니다. 경쟁사와 시장 압박이 강해지고, 우리 본사도 그에 맞는 성장 보너스를 받습니다.
-            </p>
+          <div className="diff-custom-head-actions">
+            <button type="button" className="diff-reset-btn" onClick={() => setAdvancedOpen((value) => !value)}>
+              {advancedOpen ? '접기' : '열기'}
+            </button>
+            <button type="button" className="diff-reset-btn" onClick={resetPreset}>
+              프리셋 값으로 되돌리기
+            </button>
           </div>
-        </label>
+        </div>
+
+        {advancedOpen && (
+          <>
+            <div className="diff-tuner-grid">
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">시작 자금</span>
+                <strong>{fmtW(settings.startCapital)}</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.capital.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.capital.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.capital.step}
+                  value={settings.startCapital}
+                  onChange={updateSetting('startCapital')}
+                />
+              </label>
+
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">시작 부채</span>
+                <strong>{settings.startDebt > 0 ? fmtW(settings.startDebt) : '없음'}</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.debt.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.debt.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.debt.step}
+                  value={settings.startDebt}
+                  onChange={updateSetting('startDebt')}
+                />
+              </label>
+
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">기준 금리</span>
+                <strong>{(settings.interestRate * 100).toFixed(1)}%</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.interestRate.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.interestRate.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.interestRate.step}
+                  value={settings.interestRate}
+                  onChange={updateSetting('interestRate')}
+                />
+              </label>
+
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">경쟁사 수</span>
+                <strong>{settings.rivalCount}명</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.rivalCount.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.rivalCount.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.rivalCount.step}
+                  value={settings.rivalCount}
+                  onChange={updateSetting('rivalCount')}
+                />
+              </label>
+
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">가격 민감도</span>
+                <strong>x{settings.demandElasticity.toFixed(2)}</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.demandElasticity.step}
+                  value={settings.demandElasticity}
+                  onChange={updateSetting('demandElasticity')}
+                />
+              </label>
+
+              <label className="diff-tuner">
+                <span className="diff-tuner-label">이벤트 강도</span>
+                <strong>x{settings.eventIntensity.toFixed(2)}</strong>
+                <input
+                  type="range"
+                  min={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.min}
+                  max={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.max}
+                  step={CUSTOM_DIFFICULTY_LIMITS.eventIntensity.step}
+                  value={settings.eventIntensity}
+                  onChange={updateSetting('eventIntensity')}
+                />
+              </label>
+            </div>
+
+            <label className={`diff-infinite-toggle${settings.infiniteMode ? ' active' : ''}`}>
+              <input
+                type="checkbox"
+                checked={settings.infiniteMode}
+                onChange={updateSetting('infiniteMode')}
+              />
+              <div>
+                <strong>무한모드 도전</strong>
+                <p>
+                  120개월 이후에도 시즌이 반복됩니다. 경쟁사와 시장 압박이 강해지고, 우리 본사도 그에 맞는 성장 보너스를 받습니다.
+                </p>
+              </div>
+            </label>
+          </>
+        )}
 
         <div className="diff-custom-summary">
           <span className="diff-summary-pill">{selectedCard.name} 프리셋 기반</span>
@@ -254,6 +283,7 @@ export default function DifficultyScreen() {
           <span className="diff-summary-pill">이벤트 x{settings.eventIntensity.toFixed(2)}</span>
           {settings.infiniteMode && <span className="diff-summary-pill hot">무한모드</span>}
           {hasCustomChanges && <span className="diff-summary-pill accent">커스텀 적용</span>}
+          {!advancedOpen && <span className="diff-summary-pill">세부 조정 접힘</span>}
         </div>
 
         <div className="diff-custom-actions">

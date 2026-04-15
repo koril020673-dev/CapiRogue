@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/useGameStore.js';
+import { C } from '../constants.js';
 import { APPROVAL_CARD_GRADES, getQualityMeta } from '../designData.js';
+import { estimateBaseDemand } from '../calculations.js';
 import { fmtW } from '../utils.js';
 import ActionGuide from './ActionGuide.jsx';
 import AdvisorBar from './AdvisorBar.jsx';
@@ -70,6 +72,14 @@ export default function CenterPanel() {
     sellPrice: state.sellPrice,
     plannedOrderUnits: state.plannedOrderUnits,
     qualityMode: state.qualityMode,
+    industryTier: state.industryTier,
+    itemTier: state.itemTier,
+    itemCategory: state.itemCategory,
+    economy: state.economy,
+    factory: state.factory,
+    activeEffects: state.activeEffects,
+    _bsDemandMul: state._bsDemandMul,
+    _docDemandMul: state._docDemandMul,
     runTurn: state.runTurn,
     turnProcessing: state.turnProcessing,
     difficulty: state.difficulty,
@@ -78,26 +88,102 @@ export default function CenterPanel() {
     approvalCardPreview: state.approvalCardPreview || [],
   })));
 
+  const factoryActive = s.factory.built && s.factory.buildTurnsLeft <= 0;
   const canAdvance = Boolean(s.selectedVendor) && s.sellPrice > 0 && s.plannedOrderUnits > 0;
   const [phaseOneOpen, setPhaseOneOpen] = useState(true);
   const [phaseTwoOpen, setPhaseTwoOpen] = useState(true);
+  const contractLabel = factoryActive ? '생산 라인 확정' : 'OEM 계약';
   const launchChecks = [
-    { ok: Boolean(s.selectedVendor), label: 'OEM 계약' },
+    { ok: Boolean(s.selectedVendor), label: contractLabel },
     { ok: s.plannedOrderUnits > 0, label: '발주 수량 입력' },
     { ok: s.sellPrice > 0, label: '판매가 설정' },
   ];
-  const qualityLabel = getQualityMeta(s.qualityMode).label;
-  const phaseOneDone = Boolean(s.selectedVendor);
+  const qualityLabel = factoryActive ? getQualityMeta(s.qualityMode).label : '공장 전 기본 품질';
+  const currentQualityMeta = getQualityMeta(factoryActive ? s.qualityMode : 'standard');
+  const currentNetCost = s.selectedVendor
+    ? Math.round((s.selectedVendor.unitCost || 0) * currentQualityMeta.costMul * (factoryActive ? C.FACTORY_DISCOUNT : 1))
+    : 0;
+  const currentMargin = s.selectedVendor && s.sellPrice > 0 ? s.sellPrice - currentNetCost : null;
+  const demandRef = s.selectedVendor
+    ? estimateBaseDemand({
+      selectedVendor: s.selectedVendor,
+      sellPrice: s.sellPrice,
+      itemCategory: s.itemCategory,
+      economy: s.economy,
+      difficulty: s.difficulty,
+      industryTier: s.industryTier,
+      itemTier: s.itemTier,
+      activeEffects: s.activeEffects,
+      _bsDemandMul: s._bsDemandMul,
+      _docDemandMul: s._docDemandMul,
+    }, false).demand
+    : 0;
+  const orderGap = s.selectedVendor ? (s.plannedOrderUnits || 0) - demandRef : 0;
+  const phaseOneDone = factoryActive
+    ? Boolean(s.selectedVendor) && !s.factory.productSelectionOpen
+    : Boolean(s.selectedVendor);
   const phaseTwoDone = canAdvance;
   const phaseOneSummary = phaseOneDone
-    ? `${s.selectedVendorName}와 OEM 계약 완료. 다른 공급처로 바꾸고 싶을 때만 다시 펼치면 됩니다.`
-    : '상품을 탐색하고 이번 달 공급처를 고르면 자동으로 접힙니다.';
+    ? factoryActive
+      ? `${s.selectedVendorName} 라인이 고정되어 있습니다. 공장 업그레이드 후에만 다시 바꿀 수 있습니다.`
+      : `${s.selectedVendorName}와 OEM 계약 완료. 다른 공급처로 바꾸고 싶을 때만 다시 펼치면 됩니다.`
+    : factoryActive
+      ? '공장 업그레이드 직후 새 생산 라인을 정하는 구간입니다.'
+      : '상품을 탐색하고 이번 달 공급처를 고르면 자동으로 접힙니다.';
   const phaseTwoSummary = phaseTwoDone
     ? `${qualityLabel} · 발주 ${s.plannedOrderUnits.toLocaleString('ko-KR')}개 · 판매가 ${fmtW(s.sellPrice)}`
-    : '품질 모드, 발주 수량, 판매가를 정하면 자동으로 접힙니다.';
+    : factoryActive
+      ? '품질 모드, 발주 수량, 판매가를 정하면 자동으로 접힙니다.'
+      : '공장 전에는 기본 품질 기준으로 발주 수량과 판매가만 정하면 됩니다.';
   const launchBlockedReason = s.turnProcessing
     ? '이번 달 정산을 이미 처리하고 있습니다.'
     : `아직 필요한 항목: ${launchChecks.filter((check) => !check.ok).map((check) => check.label).join(', ')}`;
+  const situationCards = [
+    {
+      label: '지금 집중할 것',
+      value: !s.selectedVendor
+        ? factoryActive && s.factory.productSelectionOpen
+          ? '새 라인 선택'
+          : contractLabel
+        : s.plannedOrderUnits <= 0
+          ? '발주 수량 결정'
+          : s.sellPrice <= 0
+            ? '판매가 결정'
+            : '실행 준비 완료',
+      tone: canAdvance ? 'good' : 'neutral',
+    },
+    {
+      label: '생산 라인',
+      value: s.selectedVendor
+        ? `${s.selectedVendorName}${factoryActive ? ` · Lv.${s.factory.upgradeLevel}` : ''}`
+        : factoryActive && s.factory.productSelectionOpen
+          ? '재선정 대기'
+          : '미확정',
+      tone: s.selectedVendor ? 'good' : 'warn',
+    },
+    {
+      label: '수요 대비 발주',
+      value: s.selectedVendor
+        ? `예상 ${demandRef.toLocaleString('ko-KR')} / 발주 ${(s.plannedOrderUnits || 0).toLocaleString('ko-KR')}`
+        : '라인 확정 후 계산',
+      meta: s.selectedVendor
+        ? orderGap > 0
+          ? `재고 여유 +${orderGap.toLocaleString('ko-KR')}`
+          : orderGap < 0
+            ? `부족 가능 ${Math.abs(orderGap).toLocaleString('ko-KR')}`
+            : '예상 수요와 동일'
+        : '',
+      tone: s.selectedVendor ? (Math.abs(orderGap) <= Math.max(50, demandRef * 0.1) ? 'good' : 'neutral') : 'neutral',
+    },
+    {
+      label: '개당 마진',
+      value: currentMargin !== null ? fmtW(currentMargin) : '미설정',
+      meta: factoryActive ? qualityLabel : '공장 전 기본 품질',
+      tone: currentMargin !== null
+        ? (currentMargin >= 0 ? 'good' : 'warn')
+        : 'neutral',
+    },
+  ];
 
   useEffect(() => {
     setPhaseOneOpen(!phaseOneDone);
@@ -116,13 +202,25 @@ export default function CenterPanel() {
         <EcoBanner />
       </div>
 
+      <div className="cp-situation-strip">
+        {situationCards.map((card) => (
+          <div key={card.label} className={`cp-situation-card ${card.tone || 'neutral'}`}>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+            {card.meta && <small>{card.meta}</small>}
+          </div>
+        ))}
+      </div>
+
       <CollapsibleSection
         className="cp-section-primary"
         eyebrow="Phase 01"
-        title="아이템 탐색과 OEM 계약"
-        subtitle="현재 산업 티어 안에서 이번 달 시장을 정하고, 비교할 공급처를 고릅니다."
+        title={factoryActive ? '생산 라인 재선정' : '아이템 탐색과 OEM 계약'}
+        subtitle={factoryActive
+          ? '공장 업그레이드 후에만 새 상품과 새 라인을 다시 고를 수 있습니다.'
+          : '현재 산업 티어 안에서 이번 달 시장을 정하고, 비교할 공급처를 고릅니다.'}
         icon="01"
-        status={s.selectedVendor ? s.selectedVendorName : '계약 대기'}
+        status={factoryActive && !s.factory.productSelectionOpen ? '라인 고정' : s.selectedVendor ? s.selectedVendorName : '계약 대기'}
         summary={phaseOneSummary}
         open={phaseOneOpen}
         onToggle={setPhaseOneOpen}
@@ -134,7 +232,7 @@ export default function CenterPanel() {
       <CollapsibleSection
         eyebrow="Phase 02"
         title="티어, 품질, 발주, 가격"
-        subtitle="설계서 기준 월간 의사결정의 중심 구간입니다."
+        subtitle={factoryActive ? '공장 품질 방향과 발주, 판매가를 함께 맞추는 핵심 구간입니다.' : '기본 생산 기준으로 발주와 판매가를 맞추는 핵심 구간입니다.'}
         icon="02"
         status={canAdvance ? '실행 준비 완료' : '입력 필요'}
         summary={phaseTwoSummary}

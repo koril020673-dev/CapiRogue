@@ -9,29 +9,25 @@ export default function FactoryBlock() {
   const s = useGameStore(useShallow(state => ({
     factory: state.factory,
     capital: state.capital,
+    selectedVendor: state.selectedVendor,
     buildFactory: state.buildFactory,
     upgradeFactory: state.upgradeFactory,
-    changeProduct: state.changeProduct,
     toggleSafety: state.toggleSafety,
   })));
 
   const f = s.factory;
   const factoryRunning = f.built && f.buildTurnsLeft <= 0;
-  const buildBlocked = f.built;
+  const buildBlocked = f.built || !s.selectedVendor;
   const upgradeBlocked = !factoryRunning || s.capital < C.FACTORY_UPGRADE_COST;
-  const productBlocked = !factoryRunning || s.capital < C.FACTORY_PRODUCT_COST;
 
-  const buildBlockedReason = '이미 공장을 보유하고 있습니다.';
+  const buildBlockedReason = f.built
+    ? '이미 공장을 보유하고 있습니다.'
+    : '먼저 현재 생산 라인을 정해야 공장 착공이 가능합니다.';
   const upgradeBlockedReason = !f.built
     ? '먼저 공장을 설립해야 합니다.'
     : f.buildTurnsLeft > 0
       ? `공장 완공까지 ${f.buildTurnsLeft}턴 남았습니다.`
       : `${fmtW(C.FACTORY_UPGRADE_COST)}이 있어야 업그레이드할 수 있습니다.`;
-  const productBlockedReason = !f.built
-    ? '먼저 공장을 설립해야 합니다.'
-    : f.buildTurnsLeft > 0
-      ? `공장 완공까지 ${f.buildTurnsLeft}턴 남았습니다.`
-      : `${fmtW(C.FACTORY_PRODUCT_COST)}이 있어야 품목을 바꿀 수 있습니다.`;
 
   return (
     <div className="factory-block">
@@ -58,10 +54,10 @@ export default function FactoryBlock() {
           fill
           disabled={upgradeBlocked}
           title="공장 업그레이드"
-          description="기존 공장 설비를 개선해 제품 품질을 한 단계 끌어올리는 투자입니다."
-          pros="품질 경쟁력이 직접 올라가 고가 전략을 받쳐주기 좋습니다."
-          cons="현금이 많이 들고, 공장이 완공되어 있어야만 실행할 수 있습니다."
-          state={upgradeBlocked ? `지금 못 누르는 이유: ${upgradeBlockedReason}` : '지금 누르면 공장 품질이 즉시 상승합니다.'}
+          description="기존 공장 설비를 개선해 제품 품질을 한 단계 끌어올리고, 다음 생산 라인을 다시 고를 수 있게 합니다."
+          pros="품질 경쟁력이 올라가고 새 상품으로 판을 다시 짤 기회도 생깁니다."
+          cons="현금이 많이 들고, 실행 직후 판매 라인을 다시 잡아야 합니다."
+          state={upgradeBlocked ? `지금 못 누르는 이유: ${upgradeBlockedReason}` : '지금 누르면 공장 레벨이 오르고 새 생산 라인을 다시 선택하게 됩니다.'}
         >
           <button
             type="button"
@@ -72,24 +68,6 @@ export default function FactoryBlock() {
             업그레이드<small>{fmtW(C.FACTORY_UPGRADE_COST)}</small>
           </button>
         </HoverHint>
-        <HoverHint
-          fill
-          disabled={productBlocked}
-          title="품목 변경"
-          description="공장 생산 품목을 갈아타면서 다음 성장 구간으로 방향을 바꾸는 선택입니다."
-          pros="새 시장이나 더 유리한 상품으로 빠르게 선회할 수 있습니다."
-          cons="현재 계약이 끊기고 새 도매업체를 다시 골라야 합니다."
-          state={productBlocked ? `지금 못 누르는 이유: ${productBlockedReason}` : '지금 누르면 기존 계약이 해제되고 새 품목 탐색이 필요해집니다.'}
-        >
-          <button
-            type="button"
-            className="factory-btn"
-            disabled={productBlocked}
-            onClick={s.changeProduct}
-          >
-            품목 변경<small>{fmtW(C.FACTORY_PRODUCT_COST)}</small>
-          </button>
-        </HoverHint>
       </div>
 
       {/* Factory status */}
@@ -97,7 +75,9 @@ export default function FactoryBlock() {
         <div className={`factory-status${f.buildTurnsLeft > 0 ? ' building' : ''}`}>
           {f.buildTurnsLeft > 0
             ? `건설 중… ${f.buildTurnsLeft}턴 후 완공`
-            : `운영 중 · Lv.${f.upgradeLevel} · 산재위험 ${Math.round(f.accidentRisk * 100)}%`}
+            : f.productSelectionOpen
+              ? `운영 중 · Lv.${f.upgradeLevel} · 새 생산 라인 선정 대기`
+              : `운영 중 · Lv.${f.upgradeLevel} · 산재위험 ${Math.round(f.accidentRisk * 100)}%`}
         </div>
       )}
 

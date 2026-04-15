@@ -132,7 +132,7 @@ const INITIAL_GAME = () => ({
   selectedVendor: null,
   currentVendorTab: 'cheap',
   rivals: [],
-  factory: { built: false, buildTurnsLeft: 0, safetyOn: true, accidentRisk: 0, upgradeLevel: 0 },
+  factory: { built: false, buildTurnsLeft: 0, safetyOn: true, accidentRisk: 0, upgradeLevel: 0, productSelectionOpen: false },
   salesTraining: { count: 0, max: 10, usedThisTurn: false },
   prodTraining:  { count: 0, max: 10, usedThisTurn: false },
   mktThisTurn: false,
@@ -195,6 +195,10 @@ function buildLoadedState(snapshot) {
   return {
     ...initGame,
     ...(snapshot?.runState || {}),
+    factory: {
+      ...initGame.factory,
+      ...(snapshot?.runState?.factory || {}),
+    },
     logs: snapshot?.logs || [],
     gamePhase: 'playing',
     activeModal: null,
@@ -526,6 +530,11 @@ export const useGameStore = create((set, get) => ({
   searchItem: async (itemName) => {
     const s = get();
     if (s.aiLoading) return;
+    if (s.factory?.built && s.factory?.buildTurnsLeft <= 0 && !s.factory?.productSelectionOpen) {
+      set({ searchStatus: '현재 생산 라인이 고정되어 있습니다. 공장 업그레이드 후 새 라인을 열 수 있습니다.' });
+      get().addToast('공장 라인이 고정되어 있습니다. 업그레이드 후 새 상품을 탐색하세요.', 'warn');
+      return;
+    }
     const check = validateItemInput(itemName);
     if (!check.ok) {
       set({ searchStatus: `⛔ ${check.reason}` });
@@ -599,7 +608,22 @@ export const useGameStore = create((set, get) => ({
 
   // ── Vendor selection ──────────────────────────────────────────────────────────
   selectVendor: (vendor) => {
-    set({ selectedVendor: vendor, plannedOrderUnits: 0 });
+    const s = get();
+    if (s.factory?.built && s.factory?.buildTurnsLeft <= 0 && !s.factory?.productSelectionOpen) {
+      get().addToast('현재 생산 라인이 고정되어 있습니다. 공장 업그레이드 후 다시 선택하세요.', 'warn');
+      return;
+    }
+    set((state) => ({
+      selectedVendor: vendor,
+      plannedOrderUnits: 0,
+      sellPrice: 0,
+      factory: state.factory?.productSelectionOpen
+        ? { ...state.factory, productSelectionOpen: false }
+        : state.factory,
+      searchStatus: state.factory?.built && state.factory?.buildTurnsLeft <= 0
+        ? `${vendor.name} 생산 라인 확정`
+        : state.searchStatus,
+    }));
     get().refreshApprovalCards();
     get().addLog(`계약: ${vendor.name} — 단가 ${fmtW(vendor.unitCost)}`, 'info');
     get().addToast(`${vendor.name} 계약 완료!`, 'good');
@@ -609,7 +633,11 @@ export const useGameStore = create((set, get) => ({
 
   // ── Price ─────────────────────────────────────────────────────────────────────
   setSellPrice: (v) => set({ sellPrice: Math.max(0, parseInt(v) || 0) }),
-  setQualityMode: (mode) => set({ qualityMode: getQualityMeta(mode).id }),
+  setQualityMode: (mode) => {
+    const s = get();
+    if (!s.factory?.built || s.factory?.buildTurnsLeft > 0) return;
+    set({ qualityMode: getQualityMeta(mode).id });
+  },
   setPlannedOrderUnits: (value) => set({ plannedOrderUnits: Math.max(0, Math.round(Number(value) || 0)) }),
   setOrderPlanMul: (v) => set({
     orderPlanMul: Math.max(C.INVENTORY_PLAN_MIN_RATIO, Math.min(C.INVENTORY_PLAN_MAX_RATIO, Number(v) || C.INVENTORY_PLAN_RATIO)),
@@ -699,10 +727,11 @@ export const useGameStore = create((set, get) => ({
   buildFactory: () => {
     const s = get();
     if (s.factory.built)                          { get().addToast('이미 공장이 있습니다', 'warn'); return; }
+    if (!s.selectedVendor)                        { get().addToast('먼저 현재 생산 라인을 정한 뒤 공장을 설립하세요.', 'warn'); return; }
     if (s.capital < C.FACTORY_BUILD_COST)         { get().addToast('자금 부족 (5억 필요)', 'warn'); return; }
     set(s2 => ({
       capital: s2.capital - C.FACTORY_BUILD_COST,
-      factory: { ...s2.factory, built: true, buildTurnsLeft: C.FACTORY_BUILD_TURNS },
+      factory: { ...s2.factory, built: true, buildTurnsLeft: C.FACTORY_BUILD_TURNS, productSelectionOpen: false },
     }));
     get().addLog('공장 건설 시작! 3턴 후 완공 예정', 'good');
     get().addToast('공장 건설 시작 (3턴 소요)', 'good');
@@ -715,10 +744,19 @@ export const useGameStore = create((set, get) => ({
     if (s.capital < C.FACTORY_UPGRADE_COST)       { get().addToast('자금 부족 (1억 필요)', 'warn'); return; }
     set(s2 => ({
       capital: s2.capital - C.FACTORY_UPGRADE_COST,
-      factory: { ...s2.factory, upgradeLevel: s2.factory.upgradeLevel + 1 },
+      selectedVendor: null,
+      wholesaleOptions: [],
+      sellPrice: 0,
+      plannedOrderUnits: 0,
+      searchStatus: '업그레이드 완료 — 새 생산 라인을 탐색할 수 있습니다.',
+      factory: {
+        ...s2.factory,
+        upgradeLevel: s2.factory.upgradeLevel + 1,
+        productSelectionOpen: true,
+      },
     }));
-    get().addLog(`공장 업그레이드 Lv.${get().factory.upgradeLevel} — 품질 +20pt`, 'good');
-    get().addToast('업그레이드 완료!', 'good');
+    get().addLog(`공장 업그레이드 Lv.${get().factory.upgradeLevel} — 새 생산 라인 선택 가능`, 'good');
+    get().addToast('업그레이드 완료! 새 라인을 고를 수 있습니다.', 'good');
   },
 
   changeProduct: () => {
@@ -726,9 +764,17 @@ export const useGameStore = create((set, get) => ({
     if (!s.factory.built)                        { get().addToast('공장 없음', 'warn'); return; }
     if (s.factory.buildTurnsLeft > 0)           { get().addToast('공장 완공 후 품목을 변경할 수 있습니다', 'warn'); return; }
     if (s.capital < C.FACTORY_PRODUCT_COST)      { get().addToast('자금 부족 (5천만 필요)', 'warn'); return; }
-    set(s2 => ({ capital: s2.capital - C.FACTORY_PRODUCT_COST, selectedVendor: null }));
-    get().addLog('품목 변경 — 새 도매업체 탐색 필요', 'info');
-    get().addToast('품목 변경 완료. 새 도매업체를 선택하세요.', 'info');
+    set(s2 => ({
+      capital: s2.capital - C.FACTORY_PRODUCT_COST,
+      selectedVendor: null,
+      sellPrice: 0,
+      plannedOrderUnits: 0,
+      wholesaleOptions: [],
+      searchStatus: '라인 재편 완료 — 새 생산 라인을 탐색할 수 있습니다.',
+      factory: { ...s2.factory, productSelectionOpen: true },
+    }));
+    get().addLog('라인 재편 완료 — 새 생산 라인 탐색 필요', 'info');
+    get().addToast('라인 재편 완료. 새 상품을 선택하세요.', 'info');
   },
 
   toggleSafety: () => {
