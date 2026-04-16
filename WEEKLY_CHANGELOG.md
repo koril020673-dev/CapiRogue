@@ -22,7 +22,14 @@
   - 티어/품질/발주/가격 프리셋 hover 카드에 개념 설명, 장단점, 예시 3종씩 추가
 - 결재/브리핑 영역 정돈
   - Phase 05 브리핑 카드가 실행 박스에 눌려 보이던 레이아웃을 완화
+  - 결재 서류 브리핑과 승인 모달을 모두 1장 기준으로 단순화
   - 우측 끝에서 잘리던 T2 해금/실행 버튼 툴팁을 우측 정렬로 보정
+- 첫 플레이 온보딩 추가
+  - 첫 게임 진입 시 핵심 UI 영역을 순서대로 안내하는 튜토리얼 오버레이 추가
+  - 설정 모달에서 튜토리얼을 다시 열 수 있도록 재실행 버튼 추가
+  - `localStorage["firstPlay"]` 플래그로 첫 방문 여부를 관리
+- 작은 정보 카드 compact화
+  - 상황 스트립, 가격 요약 카드, 대시보드, 장기 의사결정 버튼이 폭을 과하게 먹지 않도록 compact grid로 조정
 
 ### 기능 변경
 - 공장 진행 규칙 정리
@@ -33,14 +40,21 @@
   - 시작 전/게임 중 UI 비율 조정 경험을 정돈하고 설정 접근성을 개선
 - 발주 기준 보정
   - 예상 수요 대비 발주 프리셋을 보수 `85%`, 기준 `100%`, 공세 `115%`로 조정
+- 결재 흐름 단순화
+  - 브리핑 미리보기와 실제 실행 시점 모두 단일 결재안 1장만 생성하도록 조정
 
 ### 버그 수정
 - 프리미엄 품질 모드에서 개당 마진이 잘못 보이던 계산/표시 문제 수정
 - 잠금 상태 티어 hover 설명이 잘못 판정되던 로직 수정
+- Phase 05가 실행 박스에 가려 보이던 시각적 충돌 완화
 
 ### 문서 변경
 - 주간 변경 기록 갱신
-  - W16 UI/진행 흐름 개선 사항 추가
+  - W16 UI/진행 흐름 개선, 결재 단일화, 첫 플레이 튜토리얼 반영
+- `README.md` 최신화
+  - 현재 플레이 루프, UX 개선점, 저장/설정/튜토리얼 흐름을 코드 기준으로 재정리
+- `plan.md` 동기화
+  - 예전 스텁 중심 계획을 제거하고 현재 제품 단계 기준 우선순위로 재작성
 
 ### 검증
 - `npm run build` 통과
@@ -50,12 +64,22 @@
 - src/components/CenterPanel.jsx
 - src/components/DifficultyScreen.jsx
 - src/components/FactoryBlock.jsx
+- src/components/GameLayout.jsx
+- src/components/GameplayTutorial.jsx
 - src/components/HoverHint.jsx
+- src/components/LeftPanel.jsx
 - src/components/PriceBlock.jsx
+- src/components/RightPanel.jsx
+- src/components/TimelineBar.jsx
 - src/components/VendorSearch.jsx
+- src/components/modals/ApprovalModal.jsx
 - src/components/modals/SettingsModal.jsx
+- src/constants.js
+- src/designData.js
 - src/store/useGameStore.js
 - src/styles/main.css
+- README.md
+- plan.md
 - WEEKLY_CHANGELOG.md
 
 ## 2026-W15 (2026-04-07 ~ 2026-04-13)
